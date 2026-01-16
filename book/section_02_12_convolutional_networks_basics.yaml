@@ -1,0 +1,909 @@
+# section_02_12_convolutional_networks_basics.yaml
+---
+document_info:
+  chapter: "02"
+  section: "12"
+  title: "Convolutional Neural Networks Basics"
+  version: "1.0.0"
+  author: "Raghav Dinesh"
+  github: "github.com/raghavpoonia"
+  license: "MIT"
+  created: "2025-01-10"
+  estimated_pages: 7
+  tags: ["cnn", "convolution", "pooling", "filters", "feature-maps", "spatial-hierarchies"]
+
+# ============================================================================
+# SECTION 02_12: CONVOLUTIONAL NEURAL NETWORKS BASICS
+# ============================================================================
+
+section_02_12_convolutional_networks_basics:
+  
+  # --------------------------------------------------------------------------
+  # Overview and Context
+  # --------------------------------------------------------------------------
+  
+  overview: |
+    Fully-connected networks treat images as flat vectors, ignoring spatial
+    structure. A 28×28 image becomes 784 numbers, losing all information about
+    which pixels are neighbors. Convolutional Neural Networks (CNNs) preserve
+    spatial structure through local connectivity and weight sharing.
+    
+    CNNs revolutionized computer vision in 2012 (AlexNet) and remain dominant
+    for image tasks: classification, detection, segmentation. Understanding
+    convolutions is essential for modern deep learning.
+    
+    This section covers convolution operations, how filters detect features,
+    pooling for spatial downsampling, building complete CNN architectures,
+    parameter counting, and receptive fields. You'll implement convolutions
+    from scratch and understand why CNNs dominate vision tasks.
+  
+  learning_objectives:
+    
+    conceptual:
+      - "Understand local connectivity and weight sharing"
+      - "Grasp convolution as sliding dot product"
+      - "Know how filters detect features (edges, textures)"
+      - "Understand spatial hierarchies in CNNs"
+      - "Know pooling purpose and tradeoffs"
+      - "Recognize CNN advantages over fully-connected"
+    
+    practical:
+      - "Implement convolution operation from scratch"
+      - "Build convolutional layers with multiple filters"
+      - "Implement max pooling and average pooling"
+      - "Construct complete CNN architecture"
+      - "Calculate output dimensions and parameters"
+      - "Visualize learned filters and feature maps"
+    
+    security_focused:
+      - "Adversarial perturbations exploit local correlations"
+      - "Spatial triggers harder to detect than pixel-level"
+      - "Pooling loses information (both good and bad)"
+      - "Receptive fields determine attack surface"
+  
+  prerequisites:
+    - "Sections 02_05-02_11 (backprop through BatchNorm)"
+    - "Understanding of images as tensors"
+    - "Matrix operations"
+  
+  # --------------------------------------------------------------------------
+  # Topic 1: Limitations of Fully-Connected Networks for Images
+  # --------------------------------------------------------------------------
+  
+  fully_connected_limitations:
+    
+    spatial_structure_lost:
+      
+      problem: |
+        Image: 28×28 pixels arranged in 2D grid
+        Fully-connected: flattens to 784-dimensional vector
+        
+        Information lost:
+        - Which pixels are neighbors?
+        - What is the local structure?
+        - Spatial relationships destroyed
+      
+      example: |
+        These two patterns look different:
+        
+        Pattern 1:        Pattern 2:
+        [ X X ]           [ X   ]
+        [     ]           [ X X ]
+        
+        After flattening to [X, X, 0, 0] vs [X, 0, X, X]:
+        Network doesn't know they had different spatial arrangements!
+    
+    parameter_explosion:
+      
+      calculation: |
+        Input: 224×224 RGB image = 224×224×3 = 150,528 pixels
+        First hidden layer: 1000 neurons
+        
+        Parameters: 150,528 × 1000 = 150 million weights!
+        
+        Just the first layer!
+      
+      consequences:
+        - "Memory: requires massive memory"
+        - "Computation: extremely slow"
+        - "Overfitting: too many parameters, not enough data"
+        - "Generalization: can't possibly learn all pixel combinations"
+    
+    translation_invariance_missing:
+      
+      problem: |
+        Fully-connected network:
+        - Cat in top-left: learns specific weights for those pixels
+        - Cat in bottom-right: needs completely different weights
+        
+        Network must learn "cat" detector for every possible position!
+      
+      what_we_want: |
+        Translation invariance: cat is cat regardless of position
+        Same feature detector should work everywhere in image
+  
+  # --------------------------------------------------------------------------
+  # Topic 2: Convolution Operation
+  # --------------------------------------------------------------------------
+  
+  convolution_operation:
+    
+    the_core_idea:
+      
+      local_connectivity: |
+        Instead of connecting every input pixel to every neuron:
+        Connect each neuron to small local region (e.g., 3×3)
+        
+        Neuron only "sees" its local neighborhood
+      
+      weight_sharing: |
+        Use same weights (filter) across entire image
+        Slide filter over image, compute at each position
+        
+        One filter = one feature detector used everywhere
+      
+      result: |
+        Preserves spatial structure
+        Massively reduces parameters
+        Achieves translation invariance
+    
+    convolution_formula:
+      
+      2d_convolution: |
+        Output at position (i, j):
+        
+        Y[i,j] = Σₘ Σₙ X[i+m, j+n] · W[m, n] + b
+        
+        Where:
+        - X: input image (H×W)
+        - W: filter/kernel (K×K)
+        - Y: output feature map
+        - b: bias (single value per filter)
+        - m, n: iterate over filter dimensions
+      
+      visual_example: |
+        Input X (5×5):              Filter W (3×3):
+        [ 1 2 3 4 5 ]              [ 1 0 -1 ]
+        [ 2 3 4 5 6 ]              [ 2 0 -2 ]
+        [ 3 4 5 6 7 ]              [ 1 0 -1 ]
+        [ 4 5 6 7 8 ]
+        [ 5 6 7 8 9 ]
+        
+        Compute Y[0,0]:
+        Center filter on top-left 3×3 region
+        
+        [ 1 2 3 ]     [ 1  0 -1 ]
+        [ 2 3 4 ]  •  [ 2  0 -2 ]
+        [ 3 4 5 ]     [ 1  0 -1 ]
+        
+        = 1×1 + 2×0 + 3×(-1) + 2×2 + 3×0 + 4×(-2) + 3×1 + 4×0 + 5×(-1)
+        = 1 + 0 - 3 + 4 + 0 - 8 + 3 + 0 - 5
+        = -8
+      
+      stride: |
+        Stride: how many pixels to move filter each step
+        
+        Stride 1: move 1 pixel (dense sampling)
+        Stride 2: move 2 pixels (sparser sampling)
+        
+        Output size with stride s:
+        Output = (Input - Filter + 1) / stride
+      
+      padding: |
+        Problem: convolution shrinks output
+        Input 5×5, filter 3×3 → output 3×3
+        
+        Solution: pad input with zeros
+        
+        Padding types:
+        - Valid: no padding (output shrinks)
+        - Same: pad so output = input size
+        - Full: pad so output = input + filter - 1
+    
+    implementation:
+      
+      naive_convolution: |
+        def conv2d_naive(X, W, b, stride=1, padding=0):
+            """
+            2D convolution (naive implementation).
+            
+            Parameters:
+            - X: (H, W) input image
+            - W: (K, K) filter
+            - b: scalar bias
+            - stride: stride
+            - padding: padding
+            
+            Returns:
+            - Y: output feature map
+            """
+            H, W = X.shape
+            K = W.shape[0]
+            
+            # Add padding
+            if padding > 0:
+                X = np.pad(X, padding, mode='constant')
+                H, W = X.shape
+            
+            # Output dimensions
+            H_out = (H - K) // stride + 1
+            W_out = (W - K) // stride + 1
+            
+            Y = np.zeros((H_out, W_out))
+            
+            # Slide filter over input
+            for i in range(H_out):
+                for j in range(W_out):
+                    # Extract region
+                    i_start = i * stride
+                    j_start = j * stride
+                    region = X[i_start:i_start+K, j_start:j_start+K]
+                    
+                    # Compute dot product
+                    Y[i, j] = np.sum(region * W) + b
+            
+            return Y
+      
+      multi_channel_convolution: |
+        def conv2d_multichannel(X, W, b, stride=1, padding=0):
+            """
+            Convolution with multiple input channels (RGB image).
+            
+            Parameters:
+            - X: (C_in, H, W) input (C_in channels)
+            - W: (C_in, K, K) filter
+            - b: scalar bias
+            
+            Returns:
+            - Y: (H_out, W_out) single output channel
+            """
+            C_in, H, W = X.shape
+            K = W.shape[1]
+            
+            # Pad each channel
+            if padding > 0:
+                X = np.pad(X, ((0,0), (padding,padding), (padding,padding)), 
+                          mode='constant')
+                _, H, W = X.shape
+            
+            # Output dimensions
+            H_out = (H - K) // stride + 1
+            W_out = (W - K) // stride + 1
+            
+            Y = np.zeros((H_out, W_out))
+            
+            # Slide filter
+            for i in range(H_out):
+                for j in range(W_out):
+                    i_start = i * stride
+                    j_start = j * stride
+                    
+                    # Extract region (all channels)
+                    region = X[:, i_start:i_start+K, j_start:j_start+K]
+                    
+                    # Dot product across all channels
+                    Y[i, j] = np.sum(region * W) + b
+            
+            return Y
+  
+  # --------------------------------------------------------------------------
+  # Topic 3: Filters and Feature Detection
+  # --------------------------------------------------------------------------
+  
+  filters_and_features:
+    
+    what_filters_detect:
+      
+      low_level_features: |
+        First layer filters detect basic patterns:
+        - Edges (horizontal, vertical, diagonal)
+        - Corners
+        - Blobs (bright spots, dark spots)
+        - Color gradients
+      
+      example_filters:
+        vertical_edge: |
+          [ -1  0  1 ]
+          [ -1  0  1 ]
+          [ -1  0  1 ]
+          
+          Detects vertical edges (left dark, right bright)
+        
+        horizontal_edge: |
+          [ -1 -1 -1 ]
+          [  0  0  0 ]
+          [  1  1  1 ]
+          
+          Detects horizontal edges
+        
+        gaussian_blur: |
+          [ 1  2  1 ]  / 16
+          [ 2  4  2 ]
+          [ 1  2  1 ]
+          
+          Smooths image (reduces noise)
+    
+    hierarchical_features:
+      
+      layer_1: |
+        Filters: 3×3 or 5×5
+        Detect: edges, colors, simple textures
+        Receptive field: ~5×5 pixels
+      
+      layer_2: |
+        Filters: combine layer 1 features
+        Detect: corners, simple shapes (circles, rectangles)
+        Receptive field: ~15×15 pixels
+      
+      layer_3: |
+        Filters: combine layer 2 features
+        Detect: object parts (eyes, wheels, fur)
+        Receptive field: ~40×40 pixels
+      
+      layer_4_5: |
+        Filters: combine high-level parts
+        Detect: complete objects (faces, cars, animals)
+        Receptive field: ~100×100+ pixels
+      
+      visualization: |
+        Input Image
+            ↓
+        [ Layer 1: Edge detectors ]
+            ↓
+        [ Layer 2: Corner/curve detectors ]
+            ↓
+        [ Layer 3: Part detectors ]
+            ↓
+        [ Layer 4: Object detectors ]
+            ↓
+        Classification
+    
+    multiple_filters:
+      
+      why_multiple_filters: |
+        One filter = one feature type
+        Need many filters to detect diverse features
+        
+        Typical:
+        - Layer 1: 32-64 filters
+        - Layer 2: 64-128 filters
+        - Layer 3: 128-256 filters
+        - Deeper: 256-512 filters
+      
+      output_channels: |
+        Input: (C_in, H, W)
+        Apply N filters: N convolutions
+        Output: (N, H_out, W_out)
+        
+        Each filter produces one output channel (feature map)
+        N filters → N output channels
+  
+  # --------------------------------------------------------------------------
+  # Topic 4: Convolutional Layer Implementation
+  # --------------------------------------------------------------------------
+  
+  conv_layer_implementation:
+    
+    forward_pass:
+      
+      complete_conv_layer: |
+        class Conv2DLayer:
+            """
+            2D Convolutional layer.
+            
+            Parameters:
+            - in_channels: number of input channels
+            - out_channels: number of filters
+            - kernel_size: filter size (K)
+            - stride: stride
+            - padding: padding
+            """
+            
+            def __init__(self, in_channels, out_channels, kernel_size=3, 
+                        stride=1, padding=0):
+                self.in_channels = in_channels
+                self.out_channels = out_channels
+                self.kernel_size = kernel_size
+                self.stride = stride
+                self.padding = padding
+                
+                # Initialize weights: (out_channels, in_channels, K, K)
+                K = kernel_size
+                self.W = np.random.randn(out_channels, in_channels, K, K) * \
+                        np.sqrt(2.0 / (in_channels * K * K))
+                
+                # Biases: one per output channel
+                self.b = np.zeros((out_channels, 1))
+                
+                # Cache for backward
+                self.X = None
+            
+            def forward(self, X):
+                """
+                Forward pass.
+                
+                Parameters:
+                - X: (batch_size, in_channels, H, W) input
+                
+                Returns:
+                - Y: (batch_size, out_channels, H_out, W_out) output
+                """
+                self.X = X
+                batch_size, C_in, H, W = X.shape
+                
+                # Add padding
+                if self.padding > 0:
+                    X = np.pad(X, ((0,0), (0,0), 
+                                  (self.padding, self.padding),
+                                  (self.padding, self.padding)),
+                              mode='constant')
+                    _, _, H, W = X.shape
+                
+                # Output dimensions
+                K = self.kernel_size
+                H_out = (H - K) // self.stride + 1
+                W_out = (W - K) // self.stride + 1
+                
+                # Initialize output
+                Y = np.zeros((batch_size, self.out_channels, H_out, W_out))
+                
+                # Convolve
+                for b in range(batch_size):
+                    for f in range(self.out_channels):
+                        for i in range(H_out):
+                            for j in range(W_out):
+                                i_start = i * self.stride
+                                j_start = j * self.stride
+                                
+                                # Extract region
+                                region = X[b, :, 
+                                         i_start:i_start+K,
+                                         j_start:j_start+K]
+                                
+                                # Convolve with filter
+                                Y[b, f, i, j] = np.sum(region * self.W[f]) + \
+                                               self.b[f]
+                
+                return Y
+      
+      efficient_implementation_note: |
+        Naive implementation above: 4 nested loops (slow!)
+        
+        Efficient implementations use:
+        - im2col: reshape input to matrix, use matrix multiplication
+        - FFT: convolution in spatial domain = multiplication in frequency
+        - cuDNN: GPU-optimized CUDA kernels
+        
+        10-100x speedup possible!
+    
+    backward_pass:
+      
+      gradient_computation: |
+        Given ∂L/∂Y, compute:
+        1. ∂L/∂W (gradient wrt filters)
+        2. ∂L/∂b (gradient wrt biases)
+        3. ∂L/∂X (gradient wrt input, for previous layer)
+      
+      conceptual: |
+        Forward: Y[i,j] = Σ X[region] * W
+        
+        Backward:
+        ∂L/∂W = Σ (∂L/∂Y[i,j] * X[region])
+        ∂L/∂X[region] = Σ (∂L/∂Y[i,j] * W)
+        
+        Convolution in forward → convolution in backward!
+      
+      implementation_sketch: |
+        def backward(self, dL_dY):
+            """
+            Backward pass through convolution.
+            
+            Parameters:
+            - dL_dY: (batch, out_channels, H_out, W_out)
+            
+            Returns:
+            - dL_dX: (batch, in_channels, H, W)
+            """
+            batch_size = dL_dY.shape[0]
+            
+            # Initialize gradients
+            dL_dW = np.zeros_like(self.W)
+            dL_db = np.zeros_like(self.b)
+            dL_dX = np.zeros_like(self.X)
+            
+            # Compute gradients (similar loop structure to forward)
+            # ... (detailed implementation omitted for brevity)
+            
+            self.dL_dW = dL_dW
+            self.dL_db = dL_db
+            
+            return dL_dX
+  
+  # --------------------------------------------------------------------------
+  # Topic 5: Pooling Layers
+  # --------------------------------------------------------------------------
+  
+  pooling_layers:
+    
+    purpose:
+      
+      spatial_downsampling: |
+        Problem: Feature maps too large
+        - Memory: large feature maps = lots of memory
+        - Computation: expensive to process
+        
+        Solution: Downsample (reduce spatial dimensions)
+      
+      translation_invariance: |
+        Pooling provides local translation invariance
+        
+        Example: max pooling over 2×2 region
+        If feature detector fires anywhere in region → same output
+        Slight shifts don't change output (more robust)
+      
+      receptive_field: "Pooling increases receptive field of subsequent layers"
+    
+    max_pooling:
+      
+      operation: |
+        Divide input into non-overlapping regions
+        Output = maximum value in each region
+        
+        Example (2×2 max pooling):
+        Input (4×4):           Output (2×2):
+        [ 1  3  2  4 ]         [ 3  4 ]
+        [ 5  6  7  8 ]    →    [ 6  9 ]
+        [ 2  1  9  3 ]
+        [ 4  2  5  1 ]
+        
+        Top-left 2×2: max(1,3,5,6) = 6
+        Top-right 2×2: max(2,4,7,8) = 8
+        etc.
+      
+      implementation: |
+        class MaxPool2D:
+            """
+            Max pooling layer.
+            
+            Parameters:
+            - pool_size: size of pooling window (typically 2)
+            - stride: stride (typically same as pool_size)
+            """
+            
+            def __init__(self, pool_size=2, stride=None):
+                self.pool_size = pool_size
+                self.stride = stride if stride else pool_size
+                self.X = None
+                self.max_indices = None
+            
+            def forward(self, X):
+                """
+                Forward: max pooling.
+                
+                Parameters:
+                - X: (batch, channels, H, W)
+                
+                Returns:
+                - Y: (batch, channels, H_out, W_out)
+                """
+                self.X = X
+                batch, C, H, W = X.shape
+                K = self.pool_size
+                
+                # Output dimensions
+                H_out = (H - K) // self.stride + 1
+                W_out = (W - K) // self.stride + 1
+                
+                Y = np.zeros((batch, C, H_out, W_out))
+                self.max_indices = {}
+                
+                # Pool
+                for b in range(batch):
+                    for c in range(C):
+                        for i in range(H_out):
+                            for j in range(W_out):
+                                i_start = i * self.stride
+                                j_start = j * self.stride
+                                
+                                # Extract region
+                                region = X[b, c,
+                                         i_start:i_start+K,
+                                         j_start:j_start+K]
+                                
+                                # Max
+                                Y[b, c, i, j] = np.max(region)
+                                
+                                # Store index of max (for backward)
+                                max_idx = np.unravel_index(
+                                    np.argmax(region), region.shape
+                                )
+                                self.max_indices[(b,c,i,j)] = (
+                                    i_start + max_idx[0],
+                                    j_start + max_idx[1]
+                                )
+                
+                return Y
+            
+            def backward(self, dL_dY):
+                """
+                Backward: gradient only flows through max values.
+                """
+                dL_dX = np.zeros_like(self.X)
+                batch, C, H_out, W_out = dL_dY.shape
+                
+                # Distribute gradients to max locations
+                for b in range(batch):
+                    for c in range(C):
+                        for i in range(H_out):
+                            for j in range(W_out):
+                                # Get index where max occurred
+                                max_i, max_j = self.max_indices[(b,c,i,j)]
+                                
+                                # Gradient flows only to max
+                                dL_dX[b, c, max_i, max_j] += dL_dY[b, c, i, j]
+                
+                return dL_dX
+    
+    average_pooling:
+      
+      operation: |
+        Average pooling: output = average of region
+        
+        Example (2×2 average pooling):
+        Input (4×4):           Output (2×2):
+        [ 1  3  2  4 ]         [ 3.75  5.25 ]
+        [ 5  6  7  8 ]    →    [ 2.25  4.50 ]
+        [ 2  1  9  3 ]
+        [ 4  2  5  1 ]
+        
+        Top-left: (1+3+5+6)/4 = 3.75
+      
+      implementation: "Similar to MaxPool but use np.mean instead of np.max"
+      
+      comparison: |
+        Max Pooling:
+        + Preserves strongest activations
+        + More common in practice
+        - Loses information about other values
+        
+        Average Pooling:
+        + Preserves more information (all values contribute)
+        - May dilute strong signals
+        - Less common (except global average pooling at end)
+    
+    global_pooling:
+      
+      operation: |
+        Global pooling: pool entire spatial dimensions to single value
+        
+        Input: (batch, channels, H, W)
+        Output: (batch, channels, 1, 1)
+        
+        Often used at end of network before classification
+      
+      advantage: |
+        Input-size independence:
+        Without global pooling: need fixed input size (flatten to fixed length)
+        With global pooling: any input size works!
+  
+  # --------------------------------------------------------------------------
+  # Topic 6: Complete CNN Architecture
+  # --------------------------------------------------------------------------
+  
+  cnn_architecture:
+    
+    standard_pattern:
+      
+      building_blocks: |
+        [Conv → ReLU → Conv → ReLU → Pool] × N → Flatten → FC → Output
+        
+        Typical:
+        - Multiple conv layers before pooling
+        - Pooling every 2-3 conv layers
+        - Gradually increase filters, decrease spatial size
+        - Final: flatten, fully-connected, softmax
+      
+      example_architecture: |
+        Input: 224×224×3 (RGB image)
+        
+        Conv1: 3×3, 64 filters → 224×224×64
+        ReLU
+        Conv2: 3×3, 64 filters → 224×224×64
+        ReLU
+        MaxPool: 2×2 → 112×112×64
+        
+        Conv3: 3×3, 128 filters → 112×112×128
+        ReLU
+        Conv4: 3×3, 128 filters → 112×112×128
+        ReLU
+        MaxPool: 2×2 → 56×56×128
+        
+        Conv5: 3×3, 256 filters → 56×56×256
+        ReLU
+        Conv6: 3×3, 256 filters → 56×56×256
+        ReLU
+        MaxPool: 2×2 → 28×28×256
+        
+        Flatten → 28×28×256 = 200,704
+        FC1: 200,704 → 512
+        ReLU
+        Dropout: 0.5
+        FC2: 512 → 10 (classes)
+        Softmax
+    
+    parameter_counting:
+      
+      conv_layer_params: |
+        Convolution parameters:
+        (in_channels × kernel_size × kernel_size + 1) × out_channels
+        
+        Example: 3×3 conv, 64 input, 128 output
+        = (64 × 3 × 3 + 1) × 128
+        = (576 + 1) × 128
+        = 73,856 parameters
+      
+      fc_layer_params: |
+        Fully-connected parameters:
+        (in_features + 1) × out_features
+        
+        Example: 512 → 10
+        = (512 + 1) × 10
+        = 5,130 parameters
+      
+      total_example: |
+        Compare CNN vs fully-connected for 28×28 image:
+        
+        Fully-connected (1 hidden layer, 512 neurons):
+        Input→Hidden: (784+1)×512 = 401,920
+        Hidden→Output: (512+1)×10 = 5,130
+        Total: 407,050 parameters
+        
+        CNN (2 conv + 1 FC):
+        Conv1 (3×3, 1→32): (1×3×3+1)×32 = 320
+        Conv2 (3×3, 32→64): (32×3×3+1)×64 = 18,496
+        FC (49×64→10): (3136+1)×10 = 31,370
+        Total: 50,186 parameters
+        
+        CNN uses 8x fewer parameters!
+    
+    implementation_example: |
+      class SimpleCNN:
+          """
+          Simple CNN for MNIST classification.
+          """
+          
+          def __init__(self):
+              # Conv layers
+              self.conv1 = Conv2DLayer(1, 32, kernel_size=3, padding=1)
+              self.conv2 = Conv2DLayer(32, 64, kernel_size=3, padding=1)
+              
+              # Pooling
+              self.pool = MaxPool2D(pool_size=2)
+              
+              # Fully-connected
+              # After 2 pools: 28→14→7, so 7×7×64 = 3136
+              self.fc1 = LinearLayer(3136, 128)
+              self.fc2 = LinearLayer(128, 10)
+              
+              # Activations
+              self.relu = ReLULayer()
+              self.output = SoftmaxCrossEntropyLayer()
+          
+          def forward(self, x, y_true=None):
+              """
+              x: (batch, 1, 28, 28) MNIST images
+              """
+              # Conv block 1
+              a = self.conv1.forward(x)
+              a = self.relu.forward(a)
+              a = self.pool.forward(a)  # 28→14
+              
+              # Conv block 2
+              a = self.conv2.forward(a)
+              a = self.relu.forward(a)
+              a = self.pool.forward(a)  # 14→7
+              
+              # Flatten
+              batch = a.shape[0]
+              a = a.reshape(batch, -1)  # (batch, 3136)
+              
+              # Fully-connected
+              a = self.fc1.forward(a.T)  # Transpose for our FC implementation
+              a = self.relu.forward(a)
+              logits = self.fc2.forward(a)
+              
+              # Output
+              if y_true is not None:
+                  loss, pred = self.output.forward(logits, y_true)
+                  return loss, pred
+              else:
+                  return logits
+  
+  # --------------------------------------------------------------------------
+  # Topic 7: Security Implications
+  # --------------------------------------------------------------------------
+  
+  security_implications:
+    
+    adversarial_perturbations:
+      
+      spatial_correlations: |
+        CNNs rely on local spatial patterns
+        Adversarial attacks exploit this:
+        - Perturb pixels in correlated manner
+        - Create imperceptible patterns that fool filters
+        
+        Example: Add checkerboard pattern at high frequency
+        Human: can't see (too fine)
+        CNN: filters detect pattern, misclassify
+      
+      universal_perturbations: |
+        Single perturbation that fools CNN on many images
+        Works because CNNs learn similar low-level features
+    
+    backdoor_triggers:
+      
+      spatial_triggers: |
+        Patch-based triggers (e.g., small sticker in corner)
+        More practical than pixel-level triggers
+        
+        CNN easily learns: "if patch in corner → class X"
+        Harder to detect than fully-connected backdoors
+      
+      pooling_impact: |
+        Max pooling: keeps strongest activations
+        Trigger can create strong activation in specific location
+        Pooling preserves trigger signal
+        
+        Defense consideration: pooling makes spatial triggers effective
+    
+    receptive_fields_and_attacks:
+      
+      receptive_field_size: |
+        Determines how much of input affects one output
+        
+        Small receptive field: each neuron sees tiny region
+        Large receptive field: neurons see large regions
+      
+      attack_surface: |
+        Adversary must perturb within receptive field to affect output
+        Larger receptive field → larger attack surface
+        
+        Defense: limit receptive field growth (trade-off with accuracy)
+  
+  # --------------------------------------------------------------------------
+  # Key Takeaways
+  # --------------------------------------------------------------------------
+  
+  key_takeaways:
+    
+    critical_concepts:
+      - "CNNs preserve spatial structure: local connectivity + weight sharing vs fully-connected"
+      - "Convolution = sliding filter: compute dot product at each position, same filter everywhere"
+      - "Filters detect features: low-level (edges) → high-level (objects) hierarchically"
+      - "Multiple filters per layer: typically 32→64→128→256 filters, more as network deepens"
+      - "Pooling downsamples: max pooling (most common) takes maximum in each region"
+      - "Massive parameter reduction: CNN uses 10-100x fewer parameters than fully-connected"
+    
+    actionable_steps:
+      - "Start with small filters: 3×3 standard, occasionally 5×5, rarely larger"
+      - "Stack layers: Conv→ReLU→Conv→ReLU→Pool pattern, 2-3 convs before each pool"
+      - "Double filters, halve size: 32→64→128→256 filters as spatial dims shrink"
+      - "Use padding='same': keeps spatial dimensions constant within blocks"
+      - "Pool with 2×2: most common, halves each spatial dimension"
+      - "Add BatchNorm: after each conv, before ReLU for training stability"
+    
+    security_principles:
+      - "Adversarial attacks exploit spatial correlations: CNNs vulnerable to correlated perturbations"
+      - "Spatial triggers more practical: patch-based backdoors easier to deploy than pixel-level"
+      - "Pooling preserves strong signals: both legitimate features and backdoor triggers"
+      - "Receptive field = attack surface: larger receptive fields give more space for adversarial perturbations"
+    
+    debugging_tips:
+      - "Output dimensions wrong: check stride, padding calculations carefully"
+      - "Training slow: use efficient convolution (im2col, cuDNN), naive loops 100x slower"
+      - "Memory explosion: reduce batch size or use fewer/smaller filters"
+      - "Poor accuracy: add more conv layers, increase filters, use data augmentation"
+      - "Overfitting early: add dropout after FC layers, more data augmentation"
+
+---
