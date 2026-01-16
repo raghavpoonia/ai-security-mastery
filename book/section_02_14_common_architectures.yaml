@@ -1,0 +1,793 @@
+# section_02_14_common_architectures.yaml
+---
+document_info:
+  chapter: "02"
+  section: "14"
+  title: "Common CNN Architectures"
+  version: "1.0.0"
+  author: "Raghav Dinesh"
+  github: "github.com/raghavpoonia"
+  license: "MIT"
+  created: "2025-01-10"
+  estimated_pages: 6
+  tags: ["architectures", "alexnet", "vgg", "resnet", "inception", "mobilenet", "design-patterns"]
+
+# ============================================================================
+# SECTION 02_14: COMMON CNN ARCHITECTURES
+# ============================================================================
+
+section_02_14_common_architectures:
+  
+  # --------------------------------------------------------------------------
+  # Overview and Context
+  # --------------------------------------------------------------------------
+  
+  overview: |
+    CNN architecture evolution from 2012-2020 represents one of deep learning's
+    most impressive success stories. Each architecture introduced key innovations
+    that became standard practice: AlexNet proved deep learning viability,
+    VGG showed deeper is better, ResNet enabled training 100+ layer networks,
+    Inception introduced multi-scale processing, MobileNet optimized for edge devices.
+    
+    Understanding these architectures reveals fundamental design principles:
+    what works, what doesn't, trade-offs between accuracy and efficiency.
+    This knowledge is essential for both building custom architectures and
+    understanding security implications of different designs.
+  
+  learning_objectives:
+    
+    conceptual:
+      - "Understand evolution of CNN architectures"
+      - "Know key innovations of each architecture"
+      - "Grasp design principles and patterns"
+      - "Recognize accuracy vs efficiency trade-offs"
+      - "Understand when to use which architecture"
+      - "Connect architecture choices to capabilities"
+    
+    practical:
+      - "Implement simplified versions of major architectures"
+      - "Adapt architectures for custom tasks"
+      - "Compare architectures empirically"
+      - "Estimate computational costs (FLOPs, params)"
+      - "Select appropriate architecture for constraints"
+      - "Transfer learning from pretrained models"
+    
+    security_focused:
+      - "Architecture affects adversarial robustness"
+      - "Deeper networks harder to backdoor effectively"
+      - "Bottleneck layers create vulnerability points"
+      - "Model complexity impacts attack surface"
+  
+  prerequisites:
+    - "Sections 02_12-02_13 (CNNs and deep training)"
+    - "Understanding of convolution and residual connections"
+  
+  # --------------------------------------------------------------------------
+  # Topic 1: AlexNet (2012) - The Deep Learning Revolution
+  # --------------------------------------------------------------------------
+  
+  alexnet:
+    
+    historical_context:
+      
+      imagenet_competition: |
+        ImageNet Large Scale Visual Recognition Challenge (ILSVRC)
+        - 1.2 million training images
+        - 1000 classes
+        - 224×224 RGB images
+        
+        2011 winner (traditional CV): 25.8% error
+        2012 AlexNet: 15.3% error (10% improvement!)
+        
+        Demonstrated deep learning superiority
+      
+      breakthrough_moment: |
+        Before 2012: Hand-crafted features (SIFT, HOG)
+        After 2012: End-to-end deep learning
+        
+        AlexNet sparked deep learning revolution
+    
+    architecture:
+      
+      structure: |
+        Input: 224×224×3
+        
+        Conv1: 11×11, 96 filters, stride 4 → 55×55×96
+        ReLU
+        MaxPool: 3×3, stride 2 → 27×27×96
+        
+        Conv2: 5×5, 256 filters → 27×27×256
+        ReLU
+        MaxPool: 3×3, stride 2 → 13×13×256
+        
+        Conv3: 3×3, 384 filters → 13×13×384
+        ReLU
+        
+        Conv4: 3×3, 384 filters → 13×13×384
+        ReLU
+        
+        Conv5: 3×3, 256 filters → 13×13×256
+        ReLU
+        MaxPool: 3×3, stride 2 → 6×6×256
+        
+        Flatten → 6×6×256 = 9216
+        FC1: 9216 → 4096, ReLU, Dropout(0.5)
+        FC2: 4096 → 4096, ReLU, Dropout(0.5)
+        FC3: 4096 → 1000, Softmax
+        
+        Total: 8 layers (5 conv + 3 FC)
+        Parameters: ~60 million
+      
+      key_innovations:
+        relu_activation: |
+          First successful use of ReLU (vs sigmoid/tanh)
+          ReLU: f(x) = max(0, x)
+          
+          Advantages:
+          - No vanishing gradient
+          - Faster training (6x speedup vs tanh)
+          - Simple computation
+        
+        dropout_regularization: |
+          Dropout: randomly disable 50% of neurons during training
+          
+          Critical for preventing overfitting with 60M parameters
+          First major use in CNNs
+        
+        data_augmentation: |
+          Random crops, horizontal flips, color jittering
+          Increased effective training set size 2048x
+          
+          Essential for generalization
+        
+        gpu_training: |
+          Used 2 GPUs in parallel (split model across GPUs)
+          Enabled training large networks in reasonable time
+          
+          Training time: 5-6 days on 2 GPUs
+    
+    implementation_sketch: |
+      class AlexNet:
+          def __init__(self, num_classes=1000):
+              # Conv layers
+              self.conv1 = Conv2D(3, 96, 11, stride=4, padding=2)
+              self.conv2 = Conv2D(96, 256, 5, padding=2)
+              self.conv3 = Conv2D(256, 384, 3, padding=1)
+              self.conv4 = Conv2D(384, 384, 3, padding=1)
+              self.conv5 = Conv2D(384, 256, 3, padding=1)
+              
+              # Pooling
+              self.pool = MaxPool2D(3, stride=2)
+              
+              # FC layers
+              self.fc1 = Linear(6*6*256, 4096)
+              self.fc2 = Linear(4096, 4096)
+              self.fc3 = Linear(4096, num_classes)
+              
+              # Dropout
+              self.dropout = Dropout(0.5)
+              self.relu = ReLU()
+          
+          def forward(self, x):
+              x = self.pool(self.relu(self.conv1(x)))
+              x = self.pool(self.relu(self.conv2(x)))
+              x = self.relu(self.conv3(x))
+              x = self.relu(self.conv4(x))
+              x = self.pool(self.relu(self.conv5(x)))
+              
+              x = x.flatten()
+              x = self.dropout(self.relu(self.fc1(x)))
+              x = self.dropout(self.relu(self.fc2(x)))
+              x = self.fc3(x)
+              return x
+    
+    legacy:
+      - "Proved deep learning works at scale"
+      - "Established ReLU as standard activation"
+      - "Showed importance of dropout and data augmentation"
+      - "Sparked explosion of deep learning research"
+  
+  # --------------------------------------------------------------------------
+  # Topic 2: VGG (2014) - Simplicity and Depth
+  # --------------------------------------------------------------------------
+  
+  vgg:
+    
+    core_philosophy:
+      
+      simplicity: |
+        Use only:
+        - 3×3 convolutions
+        - 2×2 max pooling
+        - Same padding
+        
+        No 11×11 or 5×5 filters (like AlexNet)
+        Simple, uniform architecture
+      
+      depth: |
+        Go deep: 16-19 layers
+        2014: This was very deep!
+        
+        VGG-16: 16 layers
+        VGG-19: 19 layers
+    
+    architecture_vgg16:
+      
+      structure: |
+        Input: 224×224×3
+        
+        Block 1:
+        Conv 3×3, 64 filters (same padding)
+        Conv 3×3, 64 filters
+        MaxPool 2×2
+        
+        Block 2:
+        Conv 3×3, 128 filters
+        Conv 3×3, 128 filters
+        MaxPool 2×2
+        
+        Block 3:
+        Conv 3×3, 256 filters
+        Conv 3×3, 256 filters
+        Conv 3×3, 256 filters
+        MaxPool 2×2
+        
+        Block 4:
+        Conv 3×3, 512 filters
+        Conv 3×3, 512 filters
+        Conv 3×3, 512 filters
+        MaxPool 2×2
+        
+        Block 5:
+        Conv 3×3, 512 filters
+        Conv 3×3, 512 filters
+        Conv 3×3, 512 filters
+        MaxPool 2×2
+        
+        Flatten → 7×7×512 = 25,088
+        FC: 25,088 → 4096, ReLU, Dropout
+        FC: 4096 → 4096, ReLU, Dropout
+        FC: 4096 → 1000, Softmax
+        
+        Parameters: 138 million (very large!)
+      
+      pattern: |
+        Repeating pattern:
+        - Stack 2-3 conv layers (same # filters)
+        - Max pooling to downsample
+        - Double # filters after pooling
+        
+        Filters: 64 → 128 → 256 → 512 → 512
+        Size: 224 → 112 → 56 → 28 → 14 → 7
+    
+    why_3x3_convolutions:
+      
+      receptive_field: |
+        Two 3×3 convs = one 5×5 conv (receptive field)
+        Three 3×3 convs = one 7×7 conv
+        
+        But fewer parameters:
+        Two 3×3: 2×(3×3×C²) = 18C²
+        One 5×5: 5×5×C² = 25C²
+        
+        Savings: 28% fewer parameters!
+      
+      deeper_better: |
+        More layers = more non-linearities
+        More expressive
+        
+        Two 3×3 with ReLU between > one 5×5
+    
+    implementation_pattern: |
+      class VGGBlock:
+          """Repeating block: n×Conv → Pool"""
+          def __init__(self, in_channels, out_channels, num_convs):
+              self.convs = []
+              for i in range(num_convs):
+                  conv = Conv2D(
+                      in_channels if i == 0 else out_channels,
+                      out_channels, 3, padding=1
+                  )
+                  self.convs.append(conv)
+              self.pool = MaxPool2D(2, stride=2)
+              self.relu = ReLU()
+          
+          def forward(self, x):
+              for conv in self.convs:
+                  x = self.relu(conv(x))
+              x = self.pool(x)
+              return x
+      
+      class VGG16:
+          def __init__(self):
+              self.block1 = VGGBlock(3, 64, 2)
+              self.block2 = VGGBlock(64, 128, 2)
+              self.block3 = VGGBlock(128, 256, 3)
+              self.block4 = VGGBlock(256, 512, 3)
+              self.block5 = VGGBlock(512, 512, 3)
+              
+              self.fc1 = Linear(7*7*512, 4096)
+              self.fc2 = Linear(4096, 4096)
+              self.fc3 = Linear(4096, 1000)
+              self.dropout = Dropout(0.5)
+    
+    pros_cons:
+      advantages:
+        - "Simple, uniform architecture (easy to understand)"
+        - "Good feature extractor (widely used for transfer learning)"
+        - "Deep enough to learn complex features"
+      
+      disadvantages:
+        - "138M parameters (huge!)"
+        - "Slow training and inference"
+        - "Massive memory requirements"
+        - "Large FC layers waste parameters"
+  
+  # --------------------------------------------------------------------------
+  # Topic 3: ResNet (2015) - Breakthrough in Depth
+  # --------------------------------------------------------------------------
+  
+  resnet:
+    
+    motivation_covered_in_section_13: "See Section 02_13 for residual connections details"
+    
+    architecture_variants:
+      
+      resnet18: |
+        18 layers total
+        [Conv → 2×ResBlock → 2×ResBlock → 2×ResBlock → 2×ResBlock] → GAP → FC
+        Filters: 64 → 64 → 128 → 256 → 512
+        Parameters: 11.7M
+      
+      resnet34: |
+        34 layers total
+        [Conv → 3×ResBlock → 4×ResBlock → 6×ResBlock → 3×ResBlock] → GAP → FC
+        Parameters: 21.8M
+      
+      resnet50: |
+        50 layers total
+        Uses bottleneck blocks (1×1 → 3×3 → 1×1)
+        Parameters: 25.6M
+      
+      resnet101_152: |
+        101 layers: 44.5M parameters
+        152 layers: 60.2M parameters
+        
+        Can train even deeper: 1000+ layers possible!
+    
+    bottleneck_block:
+      
+      motivation: |
+        Problem: Standard residual block expensive
+        - 3×3 conv on 256 channels: 256×256×3×3 = 590K ops
+        
+        Solution: Bottleneck block
+        - 1×1 conv reduces channels (256 → 64)
+        - 3×3 conv on fewer channels (64×64×3×3 = 37K ops)
+        - 1×1 conv expands channels (64 → 256)
+        
+        4x fewer operations!
+      
+      structure: |
+        x → [1×1 conv, 64 filters → ReLU
+             3×3 conv, 64 filters → ReLU
+             1×1 conv, 256 filters] → (+) → ReLU
+        └─────────────────────────────────┘
+                 skip connection
+      
+      implementation: |
+        class BottleneckBlock:
+            def __init__(self, in_channels, bottleneck_channels, out_channels):
+                # 1×1 reduce
+                self.conv1 = Conv2D(in_channels, bottleneck_channels, 1)
+                self.bn1 = BatchNorm(bottleneck_channels)
+                
+                # 3×3 conv
+                self.conv2 = Conv2D(bottleneck_channels, bottleneck_channels, 3, padding=1)
+                self.bn2 = BatchNorm(bottleneck_channels)
+                
+                # 1×1 expand
+                self.conv3 = Conv2D(bottleneck_channels, out_channels, 1)
+                self.bn3 = BatchNorm(out_channels)
+                
+                # Skip connection (projection if needed)
+                if in_channels != out_channels:
+                    self.shortcut = Conv2D(in_channels, out_channels, 1)
+                else:
+                    self.shortcut = Identity()
+                
+                self.relu = ReLU()
+            
+            def forward(self, x):
+                identity = self.shortcut(x)
+                
+                out = self.relu(self.bn1(self.conv1(x)))
+                out = self.relu(self.bn2(self.conv2(out)))
+                out = self.bn3(self.conv3(out))
+                
+                out = out + identity
+                out = self.relu(out)
+                return out
+    
+    key_insights:
+      - "Residual connections enable training 100+ layer networks"
+      - "Bottleneck blocks reduce computation 4x"
+      - "Global average pooling eliminates large FC layers"
+      - "Deeper networks achieve better accuracy with fewer parameters than VGG"
+    
+    performance: |
+      ImageNet Top-5 Error:
+      ResNet-34: 7.8%
+      ResNet-50: 6.7%
+      ResNet-101: 6.4%
+      ResNet-152: 5.7%
+      
+      Deeper consistently better!
+  
+  # --------------------------------------------------------------------------
+  # Topic 4: Inception/GoogLeNet (2014) - Multi-Scale Processing
+  # --------------------------------------------------------------------------
+  
+  inception:
+    
+    core_idea:
+      
+      problem: |
+        What filter size to use?
+        - 1×1: captures point-wise features
+        - 3×3: captures local features
+        - 5×5: captures larger patterns
+        
+        Answer: Use all of them in parallel!
+      
+      inception_module: |
+        Input → ├─ 1×1 conv ───────┤
+                ├─ 1×1 → 3×3 conv ─┤
+                ├─ 1×1 → 5×5 conv ─┤ → Concatenate → Output
+                └─ 3×3 pool → 1×1 ─┘
+        
+        Four parallel paths, concatenate outputs
+    
+    implementation: |
+      class InceptionModule:
+          """Inception module with multiple parallel paths"""
+          
+          def __init__(self, in_channels, n1x1, n3x3_reduce, n3x3, 
+                      n5x5_reduce, n5x5, pool_proj):
+              # 1×1 path
+              self.branch1 = Conv2D(in_channels, n1x1, 1)
+              
+              # 1×1 → 3×3 path
+              self.branch2_1 = Conv2D(in_channels, n3x3_reduce, 1)
+              self.branch2_2 = Conv2D(n3x3_reduce, n3x3, 3, padding=1)
+              
+              # 1×1 → 5×5 path
+              self.branch3_1 = Conv2D(in_channels, n5x5_reduce, 1)
+              self.branch3_2 = Conv2D(n5x5_reduce, n5x5, 5, padding=2)
+              
+              # Pool → 1×1 path
+              self.branch4_1 = MaxPool2D(3, stride=1, padding=1)
+              self.branch4_2 = Conv2D(in_channels, pool_proj, 1)
+              
+              self.relu = ReLU()
+          
+          def forward(self, x):
+              # Compute all branches
+              branch1 = self.relu(self.branch1(x))
+              
+              branch2 = self.relu(self.branch2_1(x))
+              branch2 = self.relu(self.branch2_2(branch2))
+              
+              branch3 = self.relu(self.branch3_1(x))
+              branch3 = self.relu(self.branch3_2(branch3))
+              
+              branch4 = self.branch4_1(x)
+              branch4 = self.relu(self.branch4_2(branch4))
+              
+              # Concatenate along channel dimension
+              outputs = [branch1, branch2, branch3, branch4]
+              return np.concatenate(outputs, axis=1)
+    
+    dimensionality_reduction:
+      
+      motivation: |
+        Problem: 5×5 conv on many channels = expensive
+        
+        Example:
+        Input: 256 channels
+        5×5 conv, 256 filters: 256×256×5×5 = 1.6M operations
+      
+      solution: |
+        Use 1×1 conv to reduce channels first:
+        
+        Input: 256 channels
+        1×1 conv → 64 channels (256×64×1×1 = 16K ops)
+        5×5 conv on 64 channels → 256 (64×256×5×5 = 410K ops)
+        
+        Total: 426K ops (4x reduction!)
+      
+      insight: |
+        1×1 convolutions:
+        - Reduce dimensionality
+        - Add non-linearity (with ReLU)
+        - Very cheap computationally
+        
+        Become standard in modern architectures
+    
+    auxiliary_classifiers:
+      
+      purpose: |
+        Deep networks: gradients vanish
+        
+        Solution: Add auxiliary classifiers at intermediate layers
+        - Compute loss at middle of network
+        - Backprop from multiple points
+        - Combat vanishing gradients
+      
+      usage: |
+        Training: use auxiliary losses
+        Total loss = main_loss + 0.3×aux_loss_1 + 0.3×aux_loss_2
+        
+        Inference: discard auxiliary classifiers (only use main)
+    
+    characteristics:
+      - "22 layers deep"
+      - "Only 5M parameters (much less than VGG)"
+      - "Efficient: multi-scale processing without explosion"
+      - "Pioneered 1×1 convolutions for dimensionality reduction"
+  
+  # --------------------------------------------------------------------------
+  # Topic 5: MobileNet (2017) - Efficiency for Edge Devices
+  # --------------------------------------------------------------------------
+  
+  mobilenet:
+    
+    motivation:
+      
+      deployment_constraints: |
+        Mobile devices, embedded systems:
+        - Limited compute (weak CPU/GPU)
+        - Limited memory
+        - Limited power (battery)
+        - Real-time inference required
+        
+        Need efficient architectures (not ResNet-152!)
+      
+      goals: |
+        Maintain reasonable accuracy
+        Minimize:
+        - Parameters (model size)
+        - FLOPs (computation)
+        - Latency (inference time)
+    
+    depthwise_separable_convolutions:
+      
+      standard_convolution_cost: |
+        Input: (H, W, C_in)
+        Output: (H, W, C_out)
+        Filter: K×K
+        
+        Operations: H × W × C_in × C_out × K × K
+        
+        Example: 112×112×32 → 112×112×64, filter 3×3
+        = 112 × 112 × 32 × 64 × 3 × 3
+        = 231 million operations
+      
+      depthwise_separable: |
+        Split into two steps:
+        
+        1. Depthwise convolution:
+           Apply K×K filter to EACH input channel separately
+           Operations: H × W × C_in × K × K
+        
+        2. Pointwise convolution:
+           Apply 1×1 conv to combine channels
+           Operations: H × W × C_in × C_out
+        
+        Total: H × W × (C_in × K² + C_in × C_out)
+      
+      computation_savings: |
+        Standard: H × W × C_in × C_out × K²
+        Depthwise separable: H × W × (C_in × K² + C_in × C_out)
+        
+        Ratio = (K² + C_out) / (C_out × K²)
+             ≈ 1/C_out + 1/K²
+        
+        For K=3, C_out=64:
+        Ratio ≈ 1/64 + 1/9 ≈ 0.13
+        
+        8-9x reduction in computation!
+      
+      implementation: |
+        class DepthwiseSeparableConv:
+            """MobileNet building block"""
+            
+            def __init__(self, in_channels, out_channels, stride=1):
+                # Depthwise: separate K×K conv per channel
+                self.depthwise = Conv2D(
+                    in_channels, in_channels, 
+                    kernel_size=3, stride=stride, padding=1,
+                    groups=in_channels  # Key: groups=in_channels
+                )
+                self.bn1 = BatchNorm(in_channels)
+                
+                # Pointwise: 1×1 conv to combine
+                self.pointwise = Conv2D(in_channels, out_channels, 1)
+                self.bn2 = BatchNorm(out_channels)
+                
+                self.relu = ReLU()
+            
+            def forward(self, x):
+                x = self.relu(self.bn1(self.depthwise(x)))
+                x = self.relu(self.bn2(self.pointwise(x)))
+                return x
+    
+    mobilenet_architecture: |
+      Input: 224×224×3
+      
+      Conv 3×3, 32 filters, stride 2 → 112×112×32
+      
+      DepthwiseSeparable: 32 → 64
+      DepthwiseSeparable: 64 → 128, stride 2
+      DepthwiseSeparable: 128 → 128
+      DepthwiseSeparable: 128 → 256, stride 2
+      DepthwiseSeparable: 256 → 256
+      DepthwiseSeparable: 256 → 512, stride 2
+      
+      5× DepthwiseSeparable: 512 → 512
+      
+      DepthwiseSeparable: 512 → 1024, stride 2
+      DepthwiseSeparable: 1024 → 1024
+      
+      Global Average Pooling
+      FC: 1024 → 1000
+      
+      Parameters: 4.2M (tiny!)
+      Multiply-Adds: 569M (vs 3.6B for VGG-16)
+    
+    width_multiplier:
+      
+      concept: |
+        Make network thinner: reduce # channels by factor α
+        
+        α = 1.0: full MobileNet
+        α = 0.75: 75% channels
+        α = 0.5: 50% channels
+        α = 0.25: 25% channels
+        
+        Trade accuracy for speed
+      
+      performance: |
+        α = 1.0: 70.6% top-1, 569M MAdd, 4.2M params
+        α = 0.75: 68.4% top-1, 325M MAdd, 2.6M params
+        α = 0.5: 63.7% top-1, 149M MAdd, 1.3M params
+        α = 0.25: 50.6% top-1, 41M MAdd, 0.5M params
+        
+        Flexible accuracy/efficiency trade-off
+  
+  # --------------------------------------------------------------------------
+  # Topic 6: Architecture Comparison and Selection
+  # --------------------------------------------------------------------------
+  
+  architecture_comparison:
+    
+    summary_table: |
+      Architecture | Year | Layers | Params | Top-1 | Top-5 | Use Case
+      -------------|------|--------|--------|-------|-------|------------------
+      AlexNet      | 2012 |  8     | 60M    | 57.1% | 80.2% | Historical
+      VGG-16       | 2014 | 16     | 138M   | 71.5% | 90.1% | Feature extraction
+      ResNet-50    | 2015 | 50     | 25.6M  | 76.1% | 92.9% | General purpose
+      ResNet-152   | 2015 | 152    | 60.2M  | 78.3% | 94.3% | High accuracy
+      Inception-v3 | 2015 | 48     | 23.8M  | 78.8% | 94.4% | Multi-scale
+      MobileNet    | 2017 | 28     | 4.2M   | 70.6% | 89.5% | Mobile/embedded
+    
+    selection_criteria:
+      
+      accuracy_priority: |
+        Need best accuracy, compute not constrained:
+        → ResNet-152 or Inception-v3
+        
+        High accuracy, moderate compute:
+        → ResNet-50
+      
+      efficiency_priority: |
+        Mobile/embedded deployment:
+        → MobileNet (possibly with α < 1.0)
+        
+        Balance accuracy and efficiency:
+        → ResNet-18 or ResNet-34
+      
+      feature_extraction: |
+        Transfer learning, fine-tuning:
+        → VGG-16 (strong features, widely pretrained)
+        → ResNet-50 (good features, less parameters)
+      
+      custom_tasks: |
+        Small datasets (<10K images):
+        → Smaller architectures (ResNet-18, MobileNet)
+        → Avoid overfitting
+        
+        Large datasets (>100K images):
+        → Deeper architectures benefit
+        → ResNet-50/101
+  
+  # --------------------------------------------------------------------------
+  # Topic 7: Security Implications
+  # --------------------------------------------------------------------------
+  
+  security_implications:
+    
+    architecture_and_robustness:
+      
+      depth_impact: |
+        Observation: Deeper networks slightly more robust
+        ResNet-152 > ResNet-50 > ResNet-18 (adversarial accuracy)
+        
+        Reason: More features learned, harder to fool all paths
+      
+      width_impact: |
+        Wider networks (more channels): more robust
+        Trade-off: more parameters, slower
+    
+    bottleneck_vulnerabilities:
+      
+      dimensionality_reduction_risk: |
+        Inception, MobileNet: use bottlenecks (1×1 conv)
+        Reduce channels: 256 → 64 → 256
+        
+        Attack surface: Adversary can target bottleneck
+        Perturb inputs to cause bottleneck saturation
+        
+        64 channels easier to attack than 256
+      
+      mitigation: "Avoid extreme bottlenecks in security-critical applications"
+    
+    model_complexity_trade_offs:
+      
+      simple_architectures: |
+        VGG: simple, uniform
+        + Easier to analyze
+        + Easier to verify
+        - Less robust (fewer paths)
+      
+      complex_architectures: |
+        Inception, ResNet: many paths
+        + More robust (ensemble effect)
+        - Harder to analyze
+        - More potential backdoor paths
+  
+  # --------------------------------------------------------------------------
+  # Key Takeaways
+  # --------------------------------------------------------------------------
+  
+  key_takeaways:
+    
+    critical_concepts:
+      - "AlexNet (2012) proved deep learning works: ReLU, dropout, data augmentation became standard"
+      - "VGG showed depth matters: simple 3×3 stacks, but 138M parameters too many"
+      - "ResNet revolutionized with residual connections: enabled 100+ layers, skip connections crucial"
+      - "Inception introduced multi-scale processing: parallel paths with 1×1, 3×3, 5×5 filters"
+      - "MobileNet optimized for efficiency: depthwise separable convolutions 8-9x faster"
+      - "Bottleneck blocks reduce computation: 1×1→3×3→1×1 pattern 4x cheaper than 3×3"
+    
+    actionable_steps:
+      - "Start with ResNet-50 for general tasks: best accuracy/efficiency balance, widely pretrained"
+      - "Use MobileNet for mobile deployment: 4.2M params vs 25M, real-time inference possible"
+      - "VGG-16 for feature extraction: despite size, produces excellent features for transfer learning"
+      - "Go deeper if data abundant: ResNet-101/152 with >100K images, smaller models with <10K"
+      - "Use pretrained models: ImageNet weights excellent starting point, fine-tune for your task"
+      - "Add width multiplier for flexibility: MobileNet α parameter tunes accuracy/speed trade-off"
+    
+    security_principles:
+      - "Deeper networks more robust: ResNet-152 > ResNet-50 > ResNet-18 against adversarial attacks"
+      - "Bottlenecks create vulnerabilities: dimensionality reduction (256→64) easier to attack"
+      - "Complex architectures harder to analyze: multiple paths good for robustness, hard for verification"
+      - "Simple architectures easier to secure: VGG uniform structure easier to audit than Inception"
+    
+    evolution_lessons:
+      - "2012-2014 focus: prove deep learning works (AlexNet, VGG)"
+      - "2015-2016 focus: enable very deep networks (ResNet, Highway)"
+      - "2016-2018 focus: efficiency without sacrificing accuracy (MobileNet, ShuffleNet)"
+      - "Each innovation builds on previous: standing on shoulders of giants"
+
+---
