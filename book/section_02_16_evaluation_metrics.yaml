@@ -1,0 +1,734 @@
+# section_02_16_evaluation_metrics.yaml
+---
+document_info:
+  chapter: "02"
+  section: "16"
+  title: "Evaluation Metrics"
+  version: "1.0.0"
+  author: "Raghav Dinesh"
+  github: "github.com/raghavpoonia"
+  license: "MIT"
+  created: "2025-01-10"
+  estimated_pages: 6
+  tags: ["evaluation", "metrics", "accuracy", "precision", "recall", "f1-score", "roc-auc", "confusion-matrix"]
+
+# ============================================================================
+# SECTION 02_16: EVALUATION METRICS
+# ============================================================================
+
+section_02_16_evaluation_metrics:
+  
+  # --------------------------------------------------------------------------
+  # Overview and Context
+  # --------------------------------------------------------------------------
+  
+  overview: |
+    "95% accuracy" sounds impressive, but what if 95% of your data is one class?
+    A model predicting "always class A" achieves 95% accuracy without learning
+    anything. Choosing the right evaluation metric is critical for understanding
+    model performance and making informed decisions.
+    
+    This section covers classification metrics (accuracy, precision, recall,
+    F1, ROC-AUC), when to use each, how class imbalance affects them, confusion
+    matrices for diagnosis, and regression metrics. Understanding metrics deeply
+    prevents deploying broken models and enables meaningful comparisons.
+  
+  learning_objectives:
+    
+    conceptual:
+      - "Understand what each metric measures"
+      - "Know limitations of accuracy"
+      - "Grasp precision vs recall tradeoff"
+      - "Understand ROC curves and AUC"
+      - "Recognize metric appropriateness for tasks"
+      - "Know how class imbalance affects metrics"
+    
+    practical:
+      - "Compute all major metrics from predictions"
+      - "Create and interpret confusion matrices"
+      - "Plot and analyze ROC curves"
+      - "Select appropriate metrics for tasks"
+      - "Handle multi-class classification metrics"
+      - "Compare models meaningfully"
+    
+    security_focused:
+      - "Attack success rate vs detection metrics"
+      - "False positive rates in security systems"
+      - "Adversarial evaluation considerations"
+      - "Metric manipulation by attackers"
+  
+  prerequisites:
+    - "Basic probability and statistics"
+    - "Understanding of classification"
+  
+  # --------------------------------------------------------------------------
+  # Topic 1: Binary Classification Metrics
+  # --------------------------------------------------------------------------
+  
+  binary_classification:
+    
+    confusion_matrix:
+      
+      definition: |
+        2×2 table summarizing predictions vs actual labels
+        
+                    Predicted
+                    Negative  Positive
+        Actual   N    TN        FP
+                 P    FN        TP
+        
+        TN (True Negative): Correctly predicted negative
+        FP (False Positive): Incorrectly predicted positive (Type I error)
+        FN (False Negative): Incorrectly predicted negative (Type II error)
+        TP (True Positive): Correctly predicted positive
+      
+      example: |
+        Disease detection on 100 patients:
+        - 90 healthy (negative), 10 diseased (positive)
+        
+        Model predictions:
+        - 85 correctly predicted healthy (TN = 85)
+        - 5 healthy predicted diseased (FP = 5)
+        - 2 diseased predicted healthy (FN = 2)
+        - 8 correctly predicted diseased (TP = 8)
+        
+        Confusion Matrix:
+                    Predicted
+                    Healthy  Diseased
+        Actual   H    85        5
+                 D     2        8
+      
+      implementation: |
+        def confusion_matrix(y_true, y_pred):
+            """
+            Compute confusion matrix.
+            
+            Parameters:
+            - y_true: (n,) array of true labels (0 or 1)
+            - y_pred: (n,) array of predicted labels (0 or 1)
+            
+            Returns:
+            - matrix: 2×2 array [[TN, FP], [FN, TP]]
+            """
+            TN = np.sum((y_true == 0) & (y_pred == 0))
+            FP = np.sum((y_true == 0) & (y_pred == 1))
+            FN = np.sum((y_true == 1) & (y_pred == 0))
+            TP = np.sum((y_true == 1) & (y_pred == 1))
+            
+            return np.array([[TN, FP], [FN, TP]])
+        
+        def plot_confusion_matrix(matrix, labels=['Negative', 'Positive']):
+            """Visualize confusion matrix"""
+            import matplotlib.pyplot as plt
+            
+            plt.figure(figsize=(8, 6))
+            plt.imshow(matrix, interpolation='nearest', cmap='Blues')
+            plt.title('Confusion Matrix')
+            plt.colorbar()
+            
+            tick_marks = np.arange(2)
+            plt.xticks(tick_marks, labels)
+            plt.yticks(tick_marks, labels)
+            
+            # Add text annotations
+            for i in range(2):
+                for j in range(2):
+                    plt.text(j, i, str(matrix[i, j]),
+                           ha="center", va="center")
+            
+            plt.ylabel('True Label')
+            plt.xlabel('Predicted Label')
+            plt.tight_layout()
+            plt.show()
+    
+    accuracy:
+      
+      formula: |
+        Accuracy = (TP + TN) / (TP + TN + FP + FN)
+        
+        Proportion of correct predictions
+      
+      example: |
+        From confusion matrix above:
+        Accuracy = (8 + 85) / (8 + 85 + 5 + 2) = 93 / 100 = 0.93
+      
+      when_accuracy_misleading:
+        imbalanced_data: |
+          Dataset: 950 negative, 50 positive (95% negative)
+          
+          Dumb classifier: Always predict negative
+          Accuracy = 950 / 1000 = 95%
+          
+          Looks great, but model learned nothing!
+          Never detected any positive cases (useless for real task)
+        
+        cost_asymmetry: |
+          Medical diagnosis:
+          - FN (miss cancer): patient dies
+          - FP (false alarm): unnecessary biopsy
+          
+          Costs very different, but accuracy treats equally
+      
+      when_to_use: |
+        Use accuracy when:
+        - Classes balanced (roughly equal samples)
+        - Costs of FP and FN similar
+        - Need simple, interpretable metric
+        
+        Don't use when:
+        - Severe class imbalance (>80% one class)
+        - FP and FN have very different costs
+    
+    precision_recall:
+      
+      precision: |
+        Precision = TP / (TP + FP)
+        
+        Of all positive predictions, how many correct?
+        
+        "When model says positive, how often is it right?"
+      
+      recall: |
+        Recall = TP / (TP + FN)
+        (Also called Sensitivity, True Positive Rate)
+        
+        Of all actual positives, how many detected?
+        
+        "Of all positive cases, how many did we catch?"
+      
+      example: |
+        Confusion matrix:
+        TN=85, FP=5, FN=2, TP=8
+        
+        Precision = 8 / (8 + 5) = 8 / 13 = 0.615
+        "When we predict diseased, we're right 61.5% of time"
+        
+        Recall = 8 / (8 + 2) = 8 / 10 = 0.80
+        "We catch 80% of diseased patients"
+      
+      tradeoff: |
+        Precision ↔ Recall Tradeoff
+        
+        Conservative predictor (high threshold):
+        - Predicts positive only when very confident
+        - High precision (few false alarms)
+        - Low recall (misses many positives)
+        
+        Aggressive predictor (low threshold):
+        - Predicts positive frequently
+        - Low precision (many false alarms)
+        - High recall (catches most positives)
+        
+        Cannot maximize both simultaneously!
+      
+      when_to_use:
+        precision_priority: |
+          Use when FP costly:
+          - Spam detection (marking good email as spam = bad)
+          - Criminal conviction (innocent convicted = terrible)
+          - Expensive follow-up tests
+        
+        recall_priority: |
+          Use when FN costly:
+          - Cancer screening (missing cancer = death)
+          - Fraud detection (missing fraud = money loss)
+          - Security threats (missing attack = breach)
+      
+      implementation: |
+        def precision_recall(y_true, y_pred):
+            """Compute precision and recall"""
+            TP = np.sum((y_true == 1) & (y_pred == 1))
+            FP = np.sum((y_true == 0) & (y_pred == 1))
+            FN = np.sum((y_true == 1) & (y_pred == 0))
+            
+            precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+            recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+            
+            return precision, recall
+    
+    f1_score:
+      
+      formula: |
+        F1 = 2 × (Precision × Recall) / (Precision + Recall)
+        
+        Harmonic mean of precision and recall
+      
+      why_harmonic_mean: |
+        Arithmetic mean: (P + R) / 2
+        - Model with P=1.0, R=0.1 gets score 0.55 (misleading!)
+        
+        Harmonic mean: 2PR / (P + R)
+        - Same model gets F1 = 0.18 (more honest)
+        - Penalizes extreme imbalance
+      
+      example: |
+        Precision = 0.615, Recall = 0.80
+        
+        F1 = 2 × (0.615 × 0.80) / (0.615 + 0.80)
+           = 2 × 0.492 / 1.415
+           = 0.695
+      
+      when_to_use: |
+        Use F1 when:
+        - Need single metric balancing precision and recall
+        - Class imbalance present
+        - Both FP and FN matter (no strong preference)
+        
+        Common in ML papers, competitions
+      
+      variants:
+        f_beta: |
+          F_β = (1 + β²) × (P × R) / (β² × P + R)
+          
+          β < 1: Favor precision
+          β = 1: Balanced (standard F1)
+          β > 1: Favor recall
+          
+          F2 score (β=2): Weights recall 2x more than precision
+          Used when recall more important
+      
+      implementation: |
+        def f1_score(precision, recall):
+            """Compute F1 score"""
+            if precision + recall == 0:
+                return 0
+            return 2 * precision * recall / (precision + recall)
+        
+        def f_beta_score(precision, recall, beta=1.0):
+            """Compute F-beta score"""
+            if beta**2 * precision + recall == 0:
+                return 0
+            return (1 + beta**2) * precision * recall / \
+                   (beta**2 * precision + recall)
+    
+    roc_auc:
+      
+      roc_curve_concept: |
+        Most classifiers output probabilities: P(positive)
+        Threshold determines prediction: if P > threshold → predict positive
+        
+        ROC curve: Plot TPR vs FPR at all possible thresholds
+        
+        TPR (True Positive Rate) = Recall = TP / (TP + FN)
+        FPR (False Positive Rate) = FP / (FP + TN)
+      
+      roc_curve_construction: |
+        1. Get predicted probabilities for all samples
+        2. Sort samples by predicted probability (high to low)
+        3. For each unique probability value as threshold:
+           - Compute TPR and FPR
+           - Plot point (FPR, TPR)
+        4. Connect points to form curve
+      
+      auc_interpretation: |
+        AUC (Area Under Curve): 0 to 1
+        
+        AUC = 1.0: Perfect classifier
+        - TPR=1, FPR=0 (all positives caught, no false alarms)
+        
+        AUC = 0.5: Random classifier
+        - Diagonal line (no better than coin flip)
+        
+        AUC = 0.0: Perfectly wrong classifier
+        - All predictions inverted (can fix by reversing)
+        
+        Good model: AUC > 0.8
+        Excellent model: AUC > 0.9
+      
+      advantages: |
+        - Threshold-independent (evaluates all thresholds)
+        - Works well with imbalanced data
+        - Single number summary
+        - Probabilistic interpretation: P(score(positive) > score(negative))
+      
+      implementation: |
+        def roc_curve(y_true, y_scores):
+            """
+            Compute ROC curve.
+            
+            Parameters:
+            - y_true: (n,) true labels (0 or 1)
+            - y_scores: (n,) predicted probabilities
+            
+            Returns:
+            - fpr: false positive rates
+            - tpr: true positive rates
+            - thresholds: threshold values
+            """
+            # Sort by scores descending
+            sorted_indices = np.argsort(y_scores)[::-1]
+            y_true = y_true[sorted_indices]
+            y_scores = y_scores[sorted_indices]
+            
+            # Get unique thresholds
+            thresholds = np.unique(y_scores)
+            
+            fpr_list = []
+            tpr_list = []
+            
+            for threshold in thresholds:
+                y_pred = (y_scores >= threshold).astype(int)
+                
+                TP = np.sum((y_true == 1) & (y_pred == 1))
+                FP = np.sum((y_true == 0) & (y_pred == 1))
+                FN = np.sum((y_true == 1) & (y_pred == 0))
+                TN = np.sum((y_true == 0) & (y_pred == 0))
+                
+                tpr = TP / (TP + FN) if (TP + FN) > 0 else 0
+                fpr = FP / (FP + TN) if (FP + TN) > 0 else 0
+                
+                tpr_list.append(tpr)
+                fpr_list.append(fpr)
+            
+            return np.array(fpr_list), np.array(tpr_list), thresholds
+        
+        def compute_auc(fpr, tpr):
+            """Compute AUC using trapezoidal rule"""
+            return np.trapz(tpr, fpr)
+        
+        def plot_roc_curve(fpr, tpr, auc):
+            """Plot ROC curve"""
+            import matplotlib.pyplot as plt
+            
+            plt.figure(figsize=(8, 6))
+            plt.plot(fpr, tpr, 'b-', linewidth=2, label=f'ROC (AUC={auc:.3f})')
+            plt.plot([0, 1], [0, 1], 'r--', label='Random')
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title('ROC Curve')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            plt.show()
+  
+  # --------------------------------------------------------------------------
+  # Topic 2: Multi-Class Classification Metrics
+  # --------------------------------------------------------------------------
+  
+  multiclass_metrics:
+    
+    confusion_matrix_multiclass:
+      
+      structure: |
+        K×K matrix for K classes
+        
+        Example: 3 classes (cat, dog, bird)
+        
+                    Predicted
+                    Cat  Dog  Bird
+        Actual Cat   45    3     2
+               Dog    5   40     5
+               Bird   2    3    45
+        
+        Diagonal: correct predictions
+        Off-diagonal: confusions
+      
+      per_class_metrics: |
+        For each class, compute precision and recall:
+        
+        Class "Cat":
+        - TP = 45 (diagonal)
+        - FP = 5+2 = 7 (column sum - diagonal)
+        - FN = 3+2 = 5 (row sum - diagonal)
+        
+        Precision_cat = 45 / (45+7) = 0.865
+        Recall_cat = 45 / (45+5) = 0.900
+    
+    averaging_strategies:
+      
+      macro_average: |
+        Macro-average: Average per-class metrics
+        
+        Macro-F1 = (F1_class1 + F1_class2 + ... + F1_classK) / K
+        
+        Treats all classes equally (good for imbalanced data)
+      
+      micro_average: |
+        Micro-average: Aggregate all TP, FP, FN, then compute
+        
+        Micro-Precision = (TP1+TP2+...+TPK) / (TP1+FP1+TP2+FP2+...+TPK+FPK)
+        
+        Dominated by frequent classes
+      
+      weighted_average: |
+        Weighted-average: Weight by class frequency
+        
+        Weighted-F1 = Σ (n_k / n_total) × F1_k
+        
+        Accounts for class imbalance
+      
+      which_to_use: |
+        Macro: When all classes equally important
+        Micro: When overall accuracy matters more
+        Weighted: When classes have different importance
+      
+      implementation: |
+        def multiclass_metrics(y_true, y_pred, num_classes):
+            """Compute multi-class precision, recall, F1"""
+            precision = np.zeros(num_classes)
+            recall = np.zeros(num_classes)
+            f1 = np.zeros(num_classes)
+            
+            for k in range(num_classes):
+                # Binary problem: class k vs rest
+                y_true_binary = (y_true == k).astype(int)
+                y_pred_binary = (y_pred == k).astype(int)
+                
+                TP = np.sum((y_true_binary == 1) & (y_pred_binary == 1))
+                FP = np.sum((y_true_binary == 0) & (y_pred_binary == 1))
+                FN = np.sum((y_true_binary == 1) & (y_pred_binary == 0))
+                
+                precision[k] = TP / (TP + FP) if (TP + FP) > 0 else 0
+                recall[k] = TP / (TP + FN) if (TP + FN) > 0 else 0
+                f1[k] = 2 * precision[k] * recall[k] / \
+                       (precision[k] + recall[k]) if \
+                       (precision[k] + recall[k]) > 0 else 0
+            
+            # Compute averages
+            macro_precision = np.mean(precision)
+            macro_recall = np.mean(recall)
+            macro_f1 = np.mean(f1)
+            
+            return {
+                'per_class': {'precision': precision, 'recall': recall, 'f1': f1},
+                'macro': {'precision': macro_precision, 'recall': macro_recall, 'f1': macro_f1}
+            }
+    
+    top_k_accuracy:
+      
+      definition: |
+        Top-k accuracy: Prediction correct if true label in top-k predictions
+        
+        Common in ImageNet: report top-1 and top-5 accuracy
+      
+      example: |
+        Prediction probabilities:
+        1. Dog: 0.45
+        2. Cat: 0.30
+        3. Bird: 0.15
+        4. Horse: 0.10
+        
+        True label: Cat
+        
+        Top-1 accuracy: Wrong (predicted Dog)
+        Top-2 accuracy: Correct (Cat in top 2)
+        Top-5 accuracy: Correct (Cat in top 5)
+      
+      implementation: |
+        def top_k_accuracy(y_true, y_probs, k=5):
+            """
+            Compute top-k accuracy.
+            
+            Parameters:
+            - y_true: (n,) true class labels
+            - y_probs: (n, num_classes) predicted probabilities
+            - k: number of top predictions to consider
+            
+            Returns:
+            - accuracy: proportion of samples with true label in top-k
+            """
+            # Get top-k predicted classes for each sample
+            top_k_preds = np.argsort(y_probs, axis=1)[:, -k:]
+            
+            # Check if true label in top-k
+            correct = np.array([y_true[i] in top_k_preds[i] 
+                               for i in range(len(y_true))])
+            
+            return np.mean(correct)
+  
+  # --------------------------------------------------------------------------
+  # Topic 3: Regression Metrics
+  # --------------------------------------------------------------------------
+  
+  regression_metrics:
+    
+    mean_squared_error: |
+      MSE = (1/n) Σ (y_true - y_pred)²
+      
+      Average squared difference between predictions and targets
+      
+      Advantages:
+      - Differentiable (used as loss function)
+      - Heavily penalizes large errors (squared)
+      
+      Disadvantages:
+      - Not interpretable (squared units)
+      - Sensitive to outliers
+    
+    root_mean_squared_error: |
+      RMSE = √MSE = √[(1/n) Σ (y_true - y_pred)²]
+      
+      Same units as target variable (more interpretable)
+      
+      Example: Predicting house prices
+      RMSE = $50,000 means average error is $50K
+    
+    mean_absolute_error: |
+      MAE = (1/n) Σ |y_true - y_pred|
+      
+      Average absolute difference
+      
+      Advantages:
+      - Interpretable (same units)
+      - Less sensitive to outliers than MSE
+      
+      Disadvantages:
+      - Not differentiable at 0 (harder to optimize)
+    
+    r_squared: |
+      R² = 1 - (SS_res / SS_tot)
+      
+      Where:
+      SS_res = Σ (y_true - y_pred)²  (residual sum of squares)
+      SS_tot = Σ (y_true - y_mean)²  (total sum of squares)
+      
+      Interpretation:
+      R² = 1.0: Perfect predictions
+      R² = 0.0: Model no better than predicting mean
+      R² < 0.0: Model worse than predicting mean
+      
+      Proportion of variance explained by model
+    
+    implementation: |
+      def regression_metrics(y_true, y_pred):
+          """Compute regression metrics"""
+          n = len(y_true)
+          
+          # MSE and RMSE
+          mse = np.mean((y_true - y_pred) ** 2)
+          rmse = np.sqrt(mse)
+          
+          # MAE
+          mae = np.mean(np.abs(y_true - y_pred))
+          
+          # R²
+          ss_res = np.sum((y_true - y_pred) ** 2)
+          ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+          r2 = 1 - (ss_res / ss_tot)
+          
+          return {
+              'MSE': mse,
+              'RMSE': rmse,
+              'MAE': mae,
+              'R²': r2
+          }
+  
+  # --------------------------------------------------------------------------
+  # Topic 4: Security-Specific Metrics
+  # --------------------------------------------------------------------------
+  
+  security_metrics:
+    
+    adversarial_evaluation:
+      
+      robust_accuracy: |
+        Standard accuracy: On clean examples
+        Robust accuracy: On adversarial examples
+        
+        Example:
+        Clean accuracy: 95%
+        Robust accuracy (FGSM ε=0.1): 20%
+        
+        Model 95% accurate normally, but 80% fooled by attacks
+      
+      attack_success_rate: |
+        ASR = (# successful attacks) / (# total attacks)
+        
+        Complement of robust accuracy
+        ASR = 1 - RobustAccuracy
+        
+        Attacker perspective: higher is better (for them)
+      
+      implementation: |
+        def evaluate_robustness(model, X_clean, y_true, attack_fn, **attack_params):
+            """
+            Evaluate model robustness against attacks.
+            
+            Parameters:
+            - model: classifier
+            - X_clean: clean test samples
+            - y_true: true labels
+            - attack_fn: function generating adversarial examples
+            - attack_params: parameters for attack
+            
+            Returns:
+            - clean_acc: accuracy on clean samples
+            - robust_acc: accuracy on adversarial samples
+            - asr: attack success rate
+            """
+            # Clean accuracy
+            y_pred_clean = model.predict(X_clean)
+            clean_acc = np.mean(y_pred_clean == y_true)
+            
+            # Generate adversarial examples
+            X_adv = attack_fn(model, X_clean, y_true, **attack_params)
+            
+            # Robust accuracy
+            y_pred_adv = model.predict(X_adv)
+            robust_acc = np.mean(y_pred_adv == y_true)
+            
+            # Attack success rate
+            asr = 1 - robust_acc
+            
+            return {
+                'clean_accuracy': clean_acc,
+                'robust_accuracy': robust_acc,
+                'attack_success_rate': asr
+            }
+    
+    backdoor_detection_metrics:
+      
+      backdoor_success_rate: |
+        BSR = (# triggered samples misclassified) / (# triggered samples)
+        
+        Attacker wants: BSR → 1.0 (backdoor always works)
+        Defender wants: BSR → 0.0 (backdoor doesn't work)
+      
+      clean_accuracy_degradation: |
+        Clean accuracy should remain high even with backdoor
+        
+        CAD = CleanAccuracy_clean - CleanAccuracy_backdoored
+        
+        Stealthy backdoor: CAD ≈ 0 (no degradation)
+      
+      false_positive_rate_triggers: |
+        FPR_trigger = P(trigger detected | no trigger present)
+        
+        Detector should have low FPR
+        Otherwise: too many false alarms, unusable
+  
+  # --------------------------------------------------------------------------
+  # Key Takeaways
+  # --------------------------------------------------------------------------
+  
+  key_takeaways:
+    
+    critical_concepts:
+      - "Accuracy misleading with imbalance: 95% accuracy meaningless if 95% one class"
+      - "Precision vs Recall tradeoff: cannot maximize both, choose based on cost of FP vs FN"
+      - "F1 balances precision and recall: harmonic mean penalizes extreme imbalance"
+      - "ROC-AUC threshold-independent: evaluates all thresholds, single number summary"
+      - "Confusion matrix essential: shows exactly where model makes mistakes"
+      - "Multi-class averaging matters: macro (equal classes) vs micro (overall) vs weighted"
+    
+    actionable_steps:
+      - "Always check class distribution: if imbalanced (>80% one class), don't use accuracy alone"
+      - "Use F1 for imbalanced data: single metric balancing precision and recall"
+      - "Plot confusion matrix: visual diagnosis of model errors, see which classes confused"
+      - "Report multiple metrics: accuracy, precision, recall, F1, AUC - give complete picture"
+      - "Choose metric matching costs: FN costly (cancer)→prioritize recall, FP costly (spam)→prioritize precision"
+      - "Use ROC-AUC when possible: robust to threshold choice, works well with imbalance"
+    
+    security_principles:
+      - "Robust accuracy != clean accuracy: model 95% on clean, 20% on adversarial (not robust!)"
+      - "Attack success rate complements accuracy: ASR=80% means attacker succeeds 80% of time"
+      - "False positives costly in security: FPR must be low (<1%) or system unusable"
+      - "Backdoor metrics dual: attacker wants BSR→1.0 and CAD→0, defender wants opposite"
+    
+    common_mistakes:
+      - "Using only accuracy: ignores class imbalance, cost asymmetry"
+      - "Forgetting confusion matrix: metrics without confusion matrix = blind evaluation"
+      - "Wrong averaging for multi-class: macro when should use micro, or vice versa"
+      - "Not testing on adversarial: clean accuracy doesn't predict robustness"
+      - "Threshold-dependent metrics only: precision/recall depend on threshold choice"
+
+---
