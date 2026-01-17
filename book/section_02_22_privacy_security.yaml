@@ -1,0 +1,807 @@
+# section_02_22_privacy_security.yaml
+---
+document_info:
+  chapter: "02"
+  section: "22"
+  title: "Privacy and Security in Machine Learning"
+  version: "1.0.0"
+  author: "Raghav Dinesh"
+  github: "github.com/raghavpoonia"
+  license: "MIT"
+  created: "2025-01-16"
+  estimated_pages: 7
+  tags: ["privacy", "differential-privacy", "federated-learning", "model-inversion", "membership-inference"]
+
+# ============================================================================
+# SECTION 02_22: PRIVACY AND SECURITY IN MACHINE LEARNING
+# ============================================================================
+
+section_02_22_privacy_security:
+  
+  # --------------------------------------------------------------------------
+  # Overview and Context
+  # --------------------------------------------------------------------------
+  
+  overview: |
+    Machine learning models trained on sensitive data (medical records, financial
+    transactions, personal communications) can leak private information. Attackers
+    can reconstruct training data via model inversion, determine membership in
+    training sets, or steal model parameters. Privacy-preserving ML is critical
+    for compliance (GDPR, HIPAA) and security.
+    
+    This section covers privacy attacks (model inversion, membership inference,
+    attribute inference), defense mechanisms (differential privacy, federated
+    learning, secure aggregation), the privacy-utility tradeoff, and practical
+    implementation of privacy-preserving ML systems for security-critical
+    applications.
+  
+  learning_objectives:
+    
+    conceptual:
+      - "Understand privacy threats in ML"
+      - "Know differential privacy guarantees"
+      - "Grasp federated learning architecture"
+      - "Understand privacy-utility tradeoff"
+      - "Recognize when privacy is critical"
+      - "Connect privacy to compliance requirements"
+    
+    practical:
+      - "Implement differential privacy in training"
+      - "Deploy federated learning systems"
+      - "Measure privacy leakage empirically"
+      - "Apply privacy-preserving techniques"
+      - "Audit models for privacy violations"
+      - "Balance privacy and model utility"
+    
+    security_focused:
+      - "Model inversion reconstructs training data"
+      - "Membership inference reveals dataset inclusion"
+      - "Differential privacy provides formal guarantees"
+      - "Federated learning reduces centralization risk"
+  
+  prerequisites:
+    - "Section 02_08 (optimizers - SGD)"
+    - "Section 02_10 (regularization)"
+    - "Understanding of privacy fundamentals"
+  
+  # --------------------------------------------------------------------------
+  # Topic 1: Privacy Attacks on ML Models
+  # --------------------------------------------------------------------------
+  
+  privacy_attacks:
+    
+    model_inversion:
+      
+      threat_model:
+        attacker_capability: "Query model with inputs, observe outputs"
+        attacker_goal: "Reconstruct training data (especially private attributes)"
+        
+        example_scenario: |
+          Face recognition model trained on employee photos
+          Attacker has:
+          - Model access (query API)
+          - Public information (name, job title)
+          
+          Attack goal: Reconstruct employee faces
+      
+      attack_method:
+        gradient_based_inversion: |
+          1. Start with random image x_0
+          2. Query model: get prediction f(x_0)
+          3. Compute gradient: ∇_x log P(target_label | x)
+          4. Update: x_{t+1} = x_t + α·∇_x log P(target | x_t)
+          5. Repeat until x converges
+          6. Result: x_final approximates training sample for target
+        
+        confidence_score_attack: |
+          For regression models:
+          1. Query model for predictions on grid of inputs
+          2. Find inputs with high confidence for specific output
+          3. Aggregate to reconstruct likely training sample
+      
+      implementation_sketch: |
+        def model_inversion_attack(model, target_class, iterations=1000):
+            """
+            Reconstruct training sample via gradient-based inversion.
+            """
+            # Initialize random input
+            x = torch.randn(1, 3, 64, 64, requires_grad=True)
+            optimizer = torch.optim.Adam([x], lr=0.01)
+            
+            for i in range(iterations):
+                optimizer.zero_grad()
+                
+                # Forward pass
+                output = model(x)
+                
+                # Maximize confidence for target class
+                loss = -output[0, target_class]
+                
+                # Add regularization (encourage natural images)
+                loss += 0.001 * torch.norm(x)  # L2 regularization
+                loss += 0.01 * total_variation(x)  # Smoothness
+                
+                loss.backward()
+                optimizer.step()
+                
+                # Clip to valid range
+                x.data = torch.clamp(x.data, 0, 1)
+            
+            return x.detach()
+      
+      effectiveness:
+        high_dimensional_data: |
+          Face recognition:
+          - Successful reconstruction of recognizable faces
+          - Privacy leakage: Can identify individuals
+          
+          Medical imaging:
+          - Partial reconstruction of diagnostic images
+          - Risk: Expose patient conditions
+        
+        low_dimensional_data: |
+          Tabular data (age, income, health):
+          - Can infer sensitive attributes with high accuracy
+          - Example: Given ZIP code + model, infer income bracket
+    
+    membership_inference:
+      
+      threat_model:
+        attacker_capability: "Query model, observe confidence scores"
+        attacker_goal: "Determine if specific sample was in training set"
+        
+        privacy_violation: |
+          Knowing someone was in training set can leak information:
+          - Hospital dataset: Reveals patient has condition
+          - Purchase history: Reveals person is customer
+          - Location data: Reveals person visited place
+      
+      attack_method:
+        shadow_model_approach: |
+          1. Train shadow models on similar data
+          2. Label shadow data: in-training or out-of-training
+          3. Collect predictions and confidence scores
+          4. Train attack classifier:
+             Input: (prediction, confidence)
+             Output: member or non-member
+          5. Apply attack classifier to target model
+        
+        threshold_based_attack: |
+          Simple heuristic:
+          - Members: Model very confident (overfitting)
+          - Non-members: Model less confident
+          
+          Threshold: If confidence > τ → member
+      
+      implementation: |
+        def membership_inference_attack(target_model, shadow_models, 
+                                       shadow_train, shadow_test):
+            """
+            Train membership inference attack model.
+            """
+            # Collect features from shadow models
+            features = []
+            labels = []  # 1 = member, 0 = non-member
+            
+            for shadow_model in shadow_models:
+                # Member samples (from shadow training)
+                for x, y in shadow_train:
+                    pred = shadow_model(x)
+                    confidence = pred.max().item()
+                    features.append([confidence, pred[y].item()])
+                    labels.append(1)  # Member
+                
+                # Non-member samples (from shadow test)
+                for x, y in shadow_test:
+                    pred = shadow_model(x)
+                    confidence = pred.max().item()
+                    features.append([confidence, pred[y].item()])
+                    labels.append(0)  # Non-member
+            
+            # Train attack classifier
+            from sklearn.ensemble import RandomForestClassifier
+            attack_model = RandomForestClassifier()
+            attack_model.fit(features, labels)
+            
+            return attack_model
+        
+        def infer_membership(attack_model, target_model, sample):
+            """Infer if sample was in target's training set."""
+            pred = target_model(sample)
+            confidence = pred.max().item()
+            correct_class_conf = pred[sample_label].item()
+            
+            features = [[confidence, correct_class_conf]]
+            prediction = attack_model.predict(features)
+            
+            return prediction[0]  # 1 = member, 0 = non-member
+      
+      success_rates:
+        overfitted_models: |
+          Models trained to 100% training accuracy:
+          - Attack accuracy: 80-90%
+          - High privacy leakage
+        
+        well_regularized_models: |
+          Models with dropout, early stopping:
+          - Attack accuracy: 55-65%
+          - Lower but non-zero leakage
+        
+        differential_privacy: |
+          Models trained with DP (ε = 1):
+          - Attack accuracy: ~50% (random guessing)
+          - Strong privacy protection
+    
+    attribute_inference:
+      
+      threat: |
+        Infer sensitive attributes not used in prediction
+        
+        Example:
+        Model task: Predict job performance
+        Training data includes: age, gender, race (unused)
+        Attack: Infer race from model behavior
+      
+      attack_vector: |
+        Observe model predictions on correlated features
+        Use correlations to infer hidden attributes
+      
+      mitigation: "Remove correlates from training, fairness-aware training"
+  
+  # --------------------------------------------------------------------------
+  # Topic 2: Differential Privacy
+  # --------------------------------------------------------------------------
+  
+  differential_privacy:
+    
+    definition:
+      
+      formal_guarantee: |
+        Algorithm A is (ε, δ)-differentially private if:
+        
+        For any two datasets D and D' differing by one sample:
+        P[A(D) ∈ S] ≤ e^ε · P[A(D') ∈ S] + δ
+        
+        For all possible outputs S
+      
+      intuition: |
+        Adding or removing single individual barely changes output
+        
+        ε (epsilon): Privacy budget
+        - ε = 0: Perfect privacy (useless output)
+        - ε = 0.1: Strong privacy
+        - ε = 1: Moderate privacy
+        - ε = 10: Weak privacy
+        
+        δ (delta): Failure probability (typically very small, e.g., 10^-5)
+      
+      properties:
+        composition: |
+          Multiple DP mechanisms compose:
+          - Two (ε₁, δ₁) and (ε₂, δ₂) mechanisms
+          - Combined: (ε₁ + ε₂, δ₁ + δ₂)
+          
+          Privacy budget depletes with each use!
+        
+        post_processing: |
+          Post-processing preserves DP:
+          - If A is (ε, δ)-DP
+          - Then f(A) is also (ε, δ)-DP
+          
+          Can transform DP output without losing privacy
+    
+    mechanisms:
+      
+      laplace_mechanism:
+        for_queries: "Add Laplace noise to numeric query results"
+        
+        formula: |
+          Query result: f(D)
+          Noisy result: f(D) + Lap(Δf/ε)
+          
+          Where:
+          - Δf: Sensitivity (max change in f when one sample changes)
+          - Lap(b): Laplace distribution with scale b
+        
+        example: |
+          Query: Average age in dataset
+          True average: 35.2
+          Sensitivity: 1/n (single person changes average by ≤1/n)
+          Noise: Lap(1/(n·ε))
+          
+          For n=1000, ε=1:
+          Noisy average: 35.2 + Lap(0.001) ≈ 35.2 ± 0.003
+      
+      gaussian_mechanism:
+        for_queries: "Add Gaussian noise (for (ε, δ)-DP)"
+        
+        formula: |
+          Noisy result: f(D) + N(0, σ²)
+          
+          Where σ² = 2·Δf²·log(1.25/δ) / ε²
+        
+        advantage: "Better composition properties than Laplace"
+      
+      exponential_mechanism:
+        for_non_numeric: "Sample from exponential distribution over outputs"
+        
+        use_case: "Selecting best model from set while preserving privacy"
+    
+    dp_sgd:
+      
+      algorithm: |
+        Differentially Private Stochastic Gradient Descent:
+        
+        1. Compute gradients for batch
+        2. Clip each sample's gradient:
+           g_i ← g_i / max(1, ||g_i|| / C)
+           (C = clipping threshold)
+        
+        3. Add noise to average gradient:
+           ḡ = (1/B) Σ g_i + N(0, σ²C²I)
+        
+        4. Update weights:
+           θ ← θ - η·ḡ
+      
+      implementation: |
+        from opacus import PrivacyEngine  # PyTorch DP library
+        
+        # Standard training setup
+        model = ResNet18()
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+        data_loader = DataLoader(dataset, batch_size=256)
+        
+        # Attach privacy engine
+        privacy_engine = PrivacyEngine()
+        
+        model, optimizer, data_loader = privacy_engine.make_private(
+            module=model,
+            optimizer=optimizer,
+            data_loader=data_loader,
+            noise_multiplier=1.1,  # Noise level
+            max_grad_norm=1.0,     # Gradient clipping
+        )
+        
+        # Train normally (DP applied automatically)
+        for epoch in range(epochs):
+            for images, labels in data_loader:
+                optimizer.zero_grad()
+                outputs = model(images)
+                loss = F.cross_entropy(outputs, labels)
+                loss.backward()
+                optimizer.step()
+        
+        # Get privacy spent
+        epsilon = privacy_engine.get_epsilon(delta=1e-5)
+        print(f"Privacy cost: ε = {epsilon:.2f}")
+      
+      hyperparameters:
+        noise_multiplier: |
+          Controls noise level:
+          - Higher → more privacy, worse accuracy
+          - Typical: 0.8 - 1.5
+        
+        max_grad_norm: |
+          Gradient clipping threshold:
+          - Lower → more privacy, slower convergence
+          - Typical: 1.0 - 2.0
+        
+        batch_size: |
+          Larger batches better for DP:
+          - More samples → average dilutes noise
+          - Typical: 256 - 4096 (larger than standard)
+    
+    privacy_accuracy_tradeoff:
+      
+      empirical_results: |
+        CIFAR-10:
+        No DP: 95% accuracy
+        DP (ε=8): 85% accuracy
+        DP (ε=2): 75% accuracy
+        DP (ε=0.5): 60% accuracy
+        
+        ImageNet:
+        No DP: 76% accuracy
+        DP (ε=8): 65% accuracy
+        DP (ε=2): 50% accuracy
+      
+      fundamental_tradeoff: "Cannot have both perfect privacy and perfect utility"
+      
+      practical_settings: |
+        ε = 1: Strong privacy, acceptable for sensitive data
+        ε = 4-8: Moderate privacy, common in practice
+        ε > 10: Weak privacy, marginal protection
+  
+  # --------------------------------------------------------------------------
+  # Topic 3: Federated Learning
+  # --------------------------------------------------------------------------
+  
+  federated_learning:
+    
+    architecture:
+      
+      centralized_vs_federated:
+        centralized: |
+          Traditional ML:
+          1. Collect all data to central server
+          2. Train model on aggregated data
+          3. Deploy model
+          
+          Privacy risk: Central server sees all data
+        
+        federated: |
+          Federated learning:
+          1. Data stays on devices (phones, hospitals)
+          2. Train local models on local data
+          3. Aggregate model updates (not data)
+          4. Deploy global model
+          
+          Privacy benefit: Server never sees raw data
+      
+      workflow:
+        initialization: |
+          Server initializes global model θ_0
+          Broadcasts to clients
+        
+        local_training: |
+          Each client i:
+          1. Receives global model θ_t
+          2. Trains on local data: θ_i ← train(θ_t, D_i)
+          3. Sends update Δθ_i = θ_i - θ_t to server
+        
+        aggregation: |
+          Server aggregates updates:
+          θ_{t+1} = θ_t + (1/N) Σ Δθ_i
+          
+          (FedAvg: Simple averaging)
+        
+        iteration: "Repeat for T rounds until convergence"
+    
+    implementation:
+      
+      federated_averaging: |
+        class FederatedServer:
+            """Federated learning server."""
+            
+            def __init__(self, model):
+                self.global_model = model
+                self.clients = []
+            
+            def register_client(self, client):
+                """Register client device."""
+                self.clients.append(client)
+            
+            def train_round(self, num_clients_per_round=10):
+                """Execute one round of federated training."""
+                # Sample clients
+                selected_clients = random.sample(self.clients, 
+                                               num_clients_per_round)
+                
+                # Collect updates
+                client_updates = []
+                for client in selected_clients:
+                    # Send global model to client
+                    client_update = client.train(self.global_model)
+                    client_updates.append(client_update)
+                
+                # Aggregate updates (FedAvg)
+                self.aggregate_updates(client_updates)
+            
+            def aggregate_updates(self, updates):
+                """Average client model updates."""
+                # Initialize aggregated update
+                aggregated = {name: torch.zeros_like(param) 
+                            for name, param in self.global_model.named_parameters()}
+                
+                # Sum updates
+                for update in updates:
+                    for name, param in update.items():
+                        aggregated[name] += param
+                
+                # Average
+                num_clients = len(updates)
+                for name in aggregated:
+                    aggregated[name] /= num_clients
+                
+                # Apply to global model
+                for name, param in self.global_model.named_parameters():
+                    param.data += aggregated[name]
+        
+        class FederatedClient:
+            """Federated learning client (e.g., mobile device)."""
+            
+            def __init__(self, local_data):
+                self.local_data = local_data
+            
+            def train(self, global_model, local_epochs=5):
+                """Train on local data, return update."""
+                # Copy global model
+                local_model = copy.deepcopy(global_model)
+                optimizer = torch.optim.SGD(local_model.parameters(), lr=0.01)
+                
+                # Train locally
+                for epoch in range(local_epochs):
+                    for images, labels in self.local_data:
+                        optimizer.zero_grad()
+                        outputs = local_model(images)
+                        loss = F.cross_entropy(outputs, labels)
+                        loss.backward()
+                        optimizer.step()
+                
+                # Compute update (difference from global)
+                update = {}
+                for (name, global_param), (_, local_param) in \
+                    zip(global_model.named_parameters(), 
+                        local_model.named_parameters()):
+                    update[name] = local_param.data - global_param.data
+                
+                return update
+      
+      usage_example: |
+        # Initialize server with global model
+        server = FederatedServer(ResNet18())
+        
+        # Register clients (e.g., 100 mobile devices)
+        for client_data in client_datasets:
+            client = FederatedClient(client_data)
+            server.register_client(client)
+        
+        # Federated training
+        for round in range(100):
+            server.train_round(num_clients_per_round=10)
+            
+            # Evaluate global model
+            if round % 10 == 0:
+                accuracy = evaluate(server.global_model, test_data)
+                print(f"Round {round}: Accuracy {accuracy:.2f}%")
+    
+    challenges:
+      
+      non_iid_data:
+        problem: |
+          Clients have different data distributions
+          
+          Example: Phone keyboards
+          - User A: Mostly English
+          - User B: Mostly Spanish
+          - User C: Mix of languages
+          
+          Data not independent and identically distributed!
+        
+        impact: |
+          Slower convergence
+          Lower final accuracy
+          Bias toward majority distributions
+        
+        mitigations:
+          - "More communication rounds (2-5x more)"
+          - "Client selection strategies (balance distributions)"
+          - "Personalization (client-specific layers)"
+      
+      communication_cost:
+        problem: |
+          Bandwidth limited on mobile devices
+          Model updates expensive to transmit
+          
+          ResNet-50: 98 MB parameters
+          100 clients × 98 MB = 9.8 GB per round!
+        
+        solutions:
+          compression: |
+            Quantize updates to 8-bit or lower
+            98 MB → 25 MB (4x reduction)
+          
+          sparsification: |
+            Send only top-k% largest updates
+            98 MB → 5 MB (95% sparsity)
+          
+          structured_updates: |
+            Low-rank updates, sketching
+      
+      stragglers:
+        problem: |
+          Slow clients delay entire round
+          (waiting for slowest client)
+        
+        solution: |
+          Asynchronous aggregation:
+          - Don't wait for all clients
+          - Aggregate available updates
+          - Continue training
+    
+    privacy_in_federated_learning:
+      
+      privacy_benefits:
+        - "Data never leaves device (user control)"
+        - "Server doesn't see raw data"
+        - "Reduced centralization risk"
+      
+      remaining_risks:
+        gradient_leakage: |
+          Model updates leak information!
+          
+          Gradients can be inverted to reconstruct training data
+          (similar to model inversion)
+        
+        membership_inference: |
+          Participating in federated learning reveals membership
+          Attacker can infer who participated
+      
+      secure_aggregation:
+        concept: |
+          Cryptographic protocol where server sees only aggregate
+          Cannot see individual client updates
+        
+        protocol: |
+          1. Clients encrypt their updates
+          2. Server aggregates encrypted updates
+          3. Server decrypts only aggregate (not individual)
+          
+          Protects individual client privacy from server
+        
+        with_differential_privacy: |
+          Combine federated learning + DP + secure aggregation:
+          - Clients add local DP noise before encryption
+          - Server aggregates encrypted noisy updates
+          - Maximum privacy protection
+  
+  # --------------------------------------------------------------------------
+  # Topic 4: Practical Privacy-Preserving ML
+  # --------------------------------------------------------------------------
+  
+  practical_privacy:
+    
+    privacy_budget_management:
+      
+      composition_tracking: |
+        Each model training consumes privacy budget
+        
+        Example:
+        - Train model: ε = 2
+        - Evaluate on subsets (10 queries): ε = 10 × 0.1 = 1
+        - Total: ε = 3
+        
+        Budget exhausted → cannot train more without privacy loss
+      
+      privacy_accounting: |
+        Use advanced composition theorems:
+        - Basic composition: ε_total = Σ ε_i (loose)
+        - Advanced composition: ε_total ≈ √(2k log(1/δ)) · ε (tighter)
+        
+        Where k = number of mechanisms
+      
+      implementation: |
+        from opacus.accountants import RDPAccountant
+        
+        accountant = RDPAccountant()
+        
+        # Track each training step
+        for epoch in range(num_epochs):
+            for batch in data_loader:
+                # Training step (automatically tracked)
+                train_step(batch)
+                
+                # Update privacy accounting
+                accountant.step(noise_multiplier=1.1, 
+                              sample_rate=batch_size/dataset_size)
+        
+        # Get total privacy cost
+        epsilon = accountant.get_epsilon(delta=1e-5)
+        print(f"Total privacy cost: ε = {epsilon:.2f}")
+        
+        # Stop if budget exceeded
+        if epsilon > max_budget:
+            print("Privacy budget exhausted!")
+            break
+    
+    compliance_requirements:
+      
+      gdpr:
+        right_to_erasure: |
+          "Right to be forgotten"
+          
+          Challenge: How to remove individual from trained model?
+          
+          Solutions:
+          - Machine unlearning (retrain without sample)
+          - Differential privacy (provable bound on influence)
+          - Model versioning (retrain periodically)
+        
+        data_minimization: |
+          Collect only necessary data
+          
+          FL approach: Keep data decentralized, minimal collection
+      
+      hipaa:
+        protected_health_information: |
+          Must protect patient data
+          
+          DP guarantees: Even if attacker knows n-1 patients,
+          cannot infer nth patient's data
+        
+        audit_trails: |
+          Must log data access
+          
+          FL benefit: Data never accessed centrally
+      
+      ccpa:
+        transparency_requirements: |
+          Explain what data is collected and how used
+          
+          Challenge with DP: Noisy results, harder to explain
+    
+    deployment_patterns:
+      
+      privacy_preserving_inference:
+        homomorphic_encryption: |
+          Compute on encrypted data
+          
+          Client: Encrypt input → Server: Compute on encrypted → Client: Decrypt
+          
+          Server never sees plaintext input or output
+          
+          Cost: 100-1000x slower inference
+        
+        secure_multi_party_computation: |
+          Split computation across parties
+          No single party sees full data
+          
+          Cost: 10-100x slower
+      
+      privacy_preserving_training:
+        federated_learning: |
+          Decentralized training (covered above)
+          Data stays on devices
+        
+        split_learning: |
+          Split model across client and server
+          Client computes partial forward/backward
+          Server completes computation
+          
+          Neither sees full activations
+      
+      hybrid_approaches: |
+        Combine multiple techniques:
+        - Federated learning (decentralized data)
+        - + Differential privacy (formal guarantees)
+        - + Secure aggregation (server can't see individuals)
+        - + Homomorphic encryption (inference privacy)
+        
+        Maximum privacy, significant cost
+  
+  # --------------------------------------------------------------------------
+  # Key Takeaways
+  # --------------------------------------------------------------------------
+  
+  key_takeaways:
+    
+    critical_concepts:
+      - "Model inversion reconstructs training data: given model access, can recover faces, medical images"
+      - "Membership inference reveals dataset inclusion: 80-90% accuracy on overfitted models, privacy violation"
+      - "Differential privacy provides formal guarantee: (ε, δ)-DP, ε=1 strong, ε>10 weak"
+      - "DP-SGD adds noise to gradients: clip gradients (C=1.0), add Gaussian noise, 10-20% accuracy drop"
+      - "Federated learning decentralizes training: data stays on devices, aggregate updates not data"
+      - "Privacy-utility tradeoff fundamental: cannot have perfect privacy and perfect accuracy simultaneously"
+    
+    actionable_steps:
+      - "Implement DP-SGD with Opacus: noise_multiplier=1.1, max_grad_norm=1.0, ε≈1-4 target"
+      - "Track privacy budget carefully: composition adds up, stop training when budget exhausted"
+      - "Use large batches for DP: 256-4096 samples, larger batch → less noise needed"
+      - "Evaluate membership inference risk: train attack model, >60% accuracy = high leakage"
+      - "Deploy federated learning for mobile: client selection, compression, async aggregation"
+      - "Combine techniques for maximum privacy: FL + DP + secure aggregation together"
+    
+    security_principles:
+      - "Assume model inversion possible: sanitize training data, don't train on raw sensitive data"
+      - "Membership inference is real threat: reveals dataset inclusion, use DP to mitigate"
+      - "Differential privacy only formal guarantee: other defenses (encryption, FL) help but not provable"
+      - "Privacy costs utility: 10-20% accuracy drop typical with strong DP, plan accordingly"
+    
+    compliance_guidance:
+      - "GDPR right to erasure: DP bounds influence, alternatively use machine unlearning"
+      - "HIPAA protection: DP-SGD with ε<1 provides strong patient privacy protection"
+      - "Audit trails: log all model training, privacy budget usage, compliance evidence"
+      - "Data minimization: federated learning keeps data decentralized, aligns with regulations"
+      - "Transparency: document privacy mechanisms, privacy budget, accuracy tradeoffs for stakeholders"
+
+---
