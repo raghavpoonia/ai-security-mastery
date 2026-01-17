@@ -1,9 +1,9 @@
-# section_01_28_chapter_summary.yaml
+# section_01_29_chapter_summary.yaml
 
 ---
 document_info:
   chapter: "01"
-  section: "28"
+  section: "29"
   title: "Chapter Summary"
   version: "1.0.0"
   author: "Raghav Dinesh"
@@ -14,10 +14,10 @@ document_info:
   tags: ["summary", "review", "recap", "key-concepts", "next-steps"]
 
 # ============================================================================
-# SECTION 1.28: CHAPTER SUMMARY
+# SECTION 1.29: CHAPTER SUMMARY
 # ============================================================================
 
-section_01_28_chapter_summary:
+section_01_29_chapter_summary:
   
   # --------------------------------------------------------------------------
   # Chapter Overview
