@@ -1,0 +1,790 @@
+# section_02_20_adversarial_examples_basics.yaml
+
+-----
+
+document_info:
+chapter: “02”
+section: “20”
+title: “Adversarial Examples Basics”
+version: “1.0.0”
+author: “Raghav Dinesh”
+github: “github.com/raghavpoonia”
+license: “MIT”
+created: “2025-01-16”
+estimated_pages: 7
+tags: [“adversarial-examples”, “fgsm”, “pgd”, “cw-attack”, “adversarial-training”, “robustness”]
+
+# ============================================================================
+
+# SECTION 02_20: ADVERSARIAL EXAMPLES BASICS
+
+# ============================================================================
+
+section_02_20_adversarial_examples:
+
+# –––––––––––––––––––––––––––––––––––––
+
+# Overview and Context
+
+# –––––––––––––––––––––––––––––––––––––
+
+overview: |
+Neural networks are remarkably fragile. Adding imperceptible noise to an
+image can cause a model to misclassify with high confidence: panda → gibbon,
+stop sign → speed limit. These adversarial examples expose fundamental
+vulnerabilities in deep learning systems.
+
+```
+Understanding adversarial examples is critical for security engineers.
+Attackers can fool autonomous vehicles, bypass content filters, evade malware
+detectors. This section covers fundamental attack methods (FGSM, PGD, C&W),
+why neural networks are vulnerable, defense mechanisms including adversarial
+training, and the ongoing arms race between attacks and defenses.
+```
+
+learning_objectives:
+
+```
+conceptual:
+  - "Understand why adversarial examples exist"
+  - "Know different threat models (white-box, black-box)"
+  - "Grasp attack objectives (misclassification, targeted)"
+  - "Understand epsilon-bounded perturbations"
+  - "Recognize fundamental attack-defense tradeoff"
+  - "Connect adversarial robustness to security"
+
+practical:
+  - "Generate adversarial examples with FGSM"
+  - "Implement iterative attacks (PGD, BIM)"
+  - "Measure model robustness empirically"
+  - "Apply adversarial training"
+  - "Evaluate defenses properly"
+  - "Debug adversarial vulnerabilities"
+
+security_focused:
+  - "Adversarial examples are real-world threat"
+  - "Physical adversarial examples possible"
+  - "Standard training provides zero robustness"
+  - "Adversarial training essential defense"
+```
+
+prerequisites:
+- “Sections 02_05 (backpropagation)”
+- “Sections 02_12-02_14 (CNNs)”
+- “Understanding of gradients and optimization”
+
+# –––––––––––––––––––––––––––––––––––––
+
+# Topic 1: Introduction to Adversarial Examples
+
+# –––––––––––––––––––––––––––––––––––––
+
+introduction:
+
+```
+the_phenomenon:
+  
+  definition: |
+    Adversarial example: Input designed to fool neural network
+    
+    Original: x (correctly classified)
+    Perturbation: δ (small, imperceptible)
+    Adversarial: x_adv = x + δ (misclassified)
+    
+    Constraint: ||δ|| < ε (perturbation bounded)
+  
+  classic_example: |
+    Image: Panda
+    Model prediction: "panda" (57.7% confidence)
+    
+    Add noise: δ (invisible to humans)
+    Adversarial image: Looks like panda to humans
+    Model prediction: "gibbon" (99.3% confidence)
+    
+    Model completely fooled by imperceptible noise!
+  
+  key_properties:
+    imperceptible: |
+      Perturbations invisible to humans
+      ε = 0.03 in [0,1] scale (pixel change <8 in [0,255])
+      
+      Humans: 100% accuracy on adversarial examples
+      Models: 0-20% accuracy
+    
+    high_confidence: |
+      Models not just wrong, but confident!
+      
+      Clean: "panda" 57% confidence
+      Adversarial: "gibbon" 99% confidence
+      
+      Model more confident on wrong answer
+    
+    transferability: |
+      Adversarial examples transfer across models
+      
+      Generate on Model A
+      Test on Model B (different architecture)
+      Often still fools Model B!
+
+threat_models:
+  
+  white_box:
+    definition: |
+      Attacker has full access to model:
+      - Architecture
+      - Weights
+      - Training data
+      - Gradients
+    
+    capabilities: |
+      Can compute gradients: ∇_x L(x, y_true)
+      Can generate optimal adversarial examples
+      Strongest attack scenario
+    
+    real_world_examples:
+      - "Open-source models (anyone can access)"
+      - "Stolen models (via model extraction)"
+      - "Insider threats (employee access)"
+  
+  black_box:
+    definition: |
+      Attacker can only query model:
+      - Send inputs
+      - Receive predictions
+      - No gradient access
+    
+    capabilities: |
+      Query-based attacks:
+      - Estimate gradients via finite differences
+      - Transfer attacks from substitute model
+      - Optimization-based search
+    
+    real_world_examples:
+      - "Cloud APIs (no model access)"
+      - "Commercial products (proprietary models)"
+      - "Physical systems (camera input only)"
+  
+  gray_box:
+    definition: "Partial knowledge (architecture but not weights)"
+    
+    typical_scenario: "Know model is ResNet-50, but not exact weights"
+
+attack_objectives:
+  
+  untargeted_misclassification:
+    goal: "Cause any misclassification (don't care what)"
+    
+    formulation: |
+      Find δ such that:
+      - argmax f(x + δ) ≠ y_true
+      - ||δ|| < ε
+      
+      Where f(x) is model output
+    
+    use_case: "Evade detection (malware, spam)"
+  
+  targeted_misclassification:
+    goal: "Cause specific target class prediction"
+    
+    formulation: |
+      Find δ such that:
+      - argmax f(x + δ) = y_target
+      - ||δ|| < ε
+    
+    example: |
+      Original: Stop sign → "stop sign"
+      Target: Speed limit 45
+      Adversarial: Stop sign + δ → "speed limit 45"
+    
+    use_case: "Specific attack goals (traffic signs, authentication bypass)"
+```
+
+# –––––––––––––––––––––––––––––––––––––
+
+# Topic 2: Fast Gradient Sign Method (FGSM)
+
+# –––––––––––––––––––––––––––––––––––––
+
+fgsm:
+
+```
+intuition:
+  
+  gradient_direction: |
+    Model learns using gradients
+    Gradients show how to change input to increase loss
+    
+    Idea: Follow gradient to maximize loss
+    Result: Input that model performs poorly on
+  
+  one_step_attack: |
+    Simple, fast, one gradient computation
+    Move in direction that increases loss most
+
+algorithm:
+  
+  formula: |
+    x_adv = x + ε · sign(∇_x L(x, y_true))
+    
+    Where:
+    - x: original input
+    - ε: perturbation budget
+    - sign(): element-wise sign function (-1, 0, +1)
+    - ∇_x L: gradient of loss wrt input
+    - y_true: true label
+  
+  step_by_step: |
+    1. Forward pass: compute loss L(x, y_true)
+    2. Backward pass: compute ∇_x L
+    3. Take sign: sign(∇_x L)
+    4. Scale by ε: ε · sign(∇_x L)
+    5. Add to input: x_adv = x + perturbation
+    6. Clip to valid range: [0, 1] or [0, 255]
+  
+  why_sign: |
+    sign() gives direction, ignoring magnitude
+    
+    Each pixel: +ε or -ε (binary choice)
+    Maximizes perturbation within L∞ ball
+    
+    L∞ norm: ||δ||_∞ = max|δ_i| ≤ ε
+
+implementation:
+  
+  untargeted_fgsm: |
+    def fgsm_attack(model, image, label, epsilon):
+        """
+        Fast Gradient Sign Method (untargeted).
+        
+        Parameters:
+        - model: neural network
+        - image: (C, H, W) input image
+        - label: true label
+        - epsilon: perturbation budget
+        
+        Returns:
+        - adversarial_image: perturbed image
+        """
+        # Require gradient
+        image.requires_grad = True
+        
+        # Forward pass
+        output = model(image.unsqueeze(0))
+        loss = F.cross_entropy(output, torch.tensor([label]))
+        
+        # Backward pass
+        model.zero_grad()
+        loss.backward()
+        
+        # Get gradient
+        gradient = image.grad.data
+        
+        # Create perturbation
+        perturbation = epsilon * gradient.sign()
+        
+        # Generate adversarial image
+        adversarial_image = image + perturbation
+        adversarial_image = torch.clamp(adversarial_image, 0, 1)
+        
+        return adversarial_image.detach()
+  
+  targeted_fgsm: |
+    def fgsm_targeted(model, image, target_label, epsilon):
+        """
+        FGSM for targeted attack.
+        """
+        image.requires_grad = True
+        
+        # Forward pass with target label
+        output = model(image.unsqueeze(0))
+        loss = F.cross_entropy(output, torch.tensor([target_label]))
+        
+        # Backward
+        model.zero_grad()
+        loss.backward()
+        
+        # Gradient descent (minimize loss for target)
+        perturbation = -epsilon * image.grad.data.sign()
+        
+        adversarial_image = image + perturbation
+        adversarial_image = torch.clamp(adversarial_image, 0, 1)
+        
+        return adversarial_image.detach()
+  
+  usage_example: |
+    # Load model and image
+    model = ResNet50(pretrained=True)
+    model.eval()
+    
+    image = load_image('panda.jpg')  # True label: "panda" (388)
+    
+    # Generate adversarial example
+    epsilon = 0.03
+    adv_image = fgsm_attack(model, image, label=388, epsilon=epsilon)
+    
+    # Evaluate
+    clean_pred = model(image.unsqueeze(0)).argmax(dim=1)
+    adv_pred = model(adv_image.unsqueeze(0)).argmax(dim=1)
+    
+    print(f"Clean prediction: {clean_pred} (panda)")
+    print(f"Adversarial prediction: {adv_pred} (gibbon)")
+    
+    # Visualize perturbation
+    perturbation = (adv_image - image).abs()
+    plt.imshow(perturbation.permute(1, 2, 0) * 10)  # 10x for visibility
+
+effectiveness:
+  
+  success_rate: |
+    MNIST: 95% success rate (ε = 0.3)
+    CIFAR-10: 85% success rate (ε = 0.03)
+    ImageNet: 70% success rate (ε = 0.03)
+    
+    Very effective despite simplicity
+  
+  transferability: |
+    Model A → Model B transfer:
+    Same architecture: 80-90% success
+    Different architecture: 50-70% success
+    
+    Cross-model transferability significant
+```
+
+# –––––––––––––––––––––––––––––––––––––
+
+# Topic 3: Projected Gradient Descent (PGD)
+
+# –––––––––––––––––––––––––––––––––––––
+
+pgd:
+
+```
+motivation:
+  
+  fgsm_limitation: |
+    FGSM: One-step attack (fast but suboptimal)
+    
+    Can we do better with multiple steps?
+  
+  iterative_refinement: |
+    PGD: Multi-step FGSM
+    Each step: small perturbation in gradient direction
+    Iterate until perturbation budget exhausted
+
+algorithm:
+  
+  formula: |
+    Initialize: x_0 = x + random noise
+    
+    For t = 1 to T:
+      x_t = Π_{x + S} (x_{t-1} + α · sign(∇_x L(x_{t-1}, y)))
+    
+    Where:
+    - T: number of iterations (e.g., 40)
+    - α: step size (e.g., ε/10)
+    - Π_{x + S}: projection onto allowed set S
+    - S: L∞ ball of radius ε around x
+  
+  projection_operation: |
+    Projection ensures perturbation stays within budget:
+    
+    x_t = clip(x_t, x - ε, x + ε)
+    
+    Keeps every pixel within ε of original
+  
+  key_differences_from_fgsm:
+    - "Multiple iterations (T = 40 typical)"
+    - "Smaller step size (α = ε/10)"
+    - "Random initialization"
+    - "Projection after each step"
+
+implementation:
+  
+  pgd_attack: |
+    def pgd_attack(model, image, label, epsilon, alpha, num_iter):
+        """
+        Projected Gradient Descent attack.
+        
+        Parameters:
+        - epsilon: total perturbation budget
+        - alpha: step size per iteration
+        - num_iter: number of iterations
+        """
+        # Random initialization
+        delta = torch.zeros_like(image).uniform_(-epsilon, epsilon)
+        delta.requires_grad = True
+        
+        for i in range(num_iter):
+            # Forward pass
+            output = model(image + delta)
+            loss = F.cross_entropy(output, torch.tensor([label]))
+            
+            # Backward pass
+            loss.backward()
+            
+            # Update perturbation
+            delta.data = delta.data + alpha * delta.grad.sign()
+            
+            # Project back to epsilon ball
+            delta.data = torch.clamp(delta.data, -epsilon, epsilon)
+            
+            # Ensure valid image range
+            delta.data = torch.clamp(image + delta.data, 0, 1) - image
+            
+            # Zero gradients
+            delta.grad.zero_()
+        
+        return (image + delta).detach()
+  
+  hyperparameters: |
+    Standard configuration:
+    - epsilon: 0.03 (8/255)
+    - alpha: 0.003 (epsilon/10)
+    - num_iter: 40
+    
+    More iterations → stronger attack, but slower
+
+effectiveness:
+  
+  pgd_vs_fgsm: |
+    ImageNet (ε = 0.03):
+    FGSM: 70% success rate
+    PGD-10: 85% success rate
+    PGD-40: 92% success rate
+    
+    PGD significantly stronger than FGSM
+  
+  strongest_first_order_attack: |
+    PGD considered strongest first-order attack
+    Used as benchmark for robustness evaluation
+    
+    Model robust to PGD-40 → robust to most attacks
+```
+
+# –––––––––––––––––––––––––––––––––––––
+
+# Topic 4: Carlini & Wagner (C&W) Attack
+
+# –––––––––––––––––––––––––––––––––––––
+
+cw_attack:
+
+```
+motivation:
+  
+  pgd_limitations: |
+    PGD: Optimizes in constrained space (hard)
+    Uses sign(), ignores gradient magnitude (inefficient)
+    
+    C&W: Optimize in unconstrained space (easier)
+
+formulation:
+  
+  optimization_problem: |
+    Minimize: ||δ||_2^2 + c · L(x + δ, y_target)
+    
+    Where:
+    - ||δ||_2: L2 norm (perturbation size)
+    - L: custom loss encouraging misclassification
+    - c: trade-off parameter
+  
+  custom_loss_function: |
+    L(x') = max(max_{i≠t} f(x')_i - f(x')_t, -κ)
+    
+    Where:
+    - f(x')_i: logit for class i
+    - t: target class
+    - κ: confidence parameter (default: 0)
+    
+    Encourages: target logit > all other logits
+  
+  unconstrained_optimization: |
+    Instead of clipping to [0, 1]:
+    
+    Use change of variables:
+    x_adv = 0.5 · (tanh(w) + 1)
+    
+    Optimize over w (unconstrained)
+    x_adv automatically in [0, 1]
+
+algorithm:
+  
+  binary_search_on_c: |
+    1. Initialize: c_low = 0, c_high = large value
+    2. While not converged:
+       a. c = (c_low + c_high) / 2
+       b. Optimize: ||δ||_2^2 + c · L(x + δ, y_target)
+       c. If attack succeeds: c_high = c (reduce c)
+       d. Else: c_low = c (increase c)
+    3. Return best adversarial example found
+  
+  adam_optimization: |
+    Use Adam optimizer (not gradient descent)
+    Typically 1000-10000 iterations
+    
+    More expensive than PGD, but finds smaller perturbations
+
+characteristics:
+  
+  advantages:
+    - "Finds minimal perturbations (L2 norm)"
+    - "High success rate (>95% on most models)"
+    - "Works well for targeted attacks"
+  
+  disadvantages:
+    - "Slow: 1000+ iterations per sample"
+    - "Expensive: Adam optimization overhead"
+    - "L2 norm: Different from L∞ (perceptual differences)"
+  
+  typical_results: |
+    ImageNet targeted attack:
+    C&W: 99% success, L2 norm ~1.5
+    PGD: 92% success, L∞ norm 8/255
+    
+    C&W finds smaller perturbations (in L2)
+```
+
+# –––––––––––––––––––––––––––––––––––––
+
+# Topic 5: Adversarial Training
+
+# –––––––––––––––––––––––––––––––––––––
+
+adversarial_training:
+
+```
+core_idea:
+  
+  concept: |
+    Train on adversarial examples
+    Force model to classify correctly even when perturbed
+  
+  training_objective: |
+    Standard training:
+    min_θ E[(x,y) ~ D] [L(f_θ(x), y)]
+    
+    Adversarial training:
+    min_θ E[(x,y) ~ D] [max_δ:||δ||≤ε L(f_θ(x + δ), y)]
+    
+    Inner max: Find worst-case perturbation
+    Outer min: Train to be robust to worst-case
+
+implementation:
+  
+  standard_adversarial_training: |
+    def adversarial_training_epoch(model, train_loader, optimizer, 
+                                  epsilon, alpha, num_iter):
+        """
+        One epoch of adversarial training with PGD.
+        """
+        model.train()
+        total_loss = 0
+        
+        for images, labels in train_loader:
+            # Generate adversarial examples
+            adv_images = []
+            for img, lbl in zip(images, labels):
+                adv_img = pgd_attack(model, img, lbl, epsilon, alpha, num_iter)
+                adv_images.append(adv_img)
+            adv_images = torch.stack(adv_images)
+            
+            # Train on adversarial examples
+            optimizer.zero_grad()
+            outputs = model(adv_images)
+            loss = F.cross_entropy(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            
+            total_loss += loss.item()
+        
+        return total_loss / len(train_loader)
+  
+  fast_adversarial_training: |
+    # Faster variant: use FGSM instead of PGD
+    # 10x speedup, slightly worse robustness
+    
+    def fast_adversarial_training_epoch(model, train_loader, optimizer, epsilon):
+        model.train()
+        
+        for images, labels in train_loader:
+            # FGSM on-the-fly
+            images.requires_grad = True
+            outputs = model(images)
+            loss = F.cross_entropy(outputs, labels)
+            loss.backward()
+            
+            # Generate adversarial examples
+            adv_images = images + epsilon * images.grad.sign()
+            adv_images = torch.clamp(adv_images, 0, 1).detach()
+            
+            # Train on adversarial examples
+            optimizer.zero_grad()
+            outputs = model(adv_images)
+            loss = F.cross_entropy(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+effectiveness:
+  
+  robustness_gains: |
+    CIFAR-10 (ε = 8/255):
+    Standard training: 0% robust accuracy
+    Adversarial training: 45-50% robust accuracy
+    
+    ImageNet (ε = 4/255):
+    Standard training: 0% robust accuracy
+    Adversarial training: 35-40% robust accuracy
+  
+  clean_accuracy_tradeoff: |
+    Clean accuracy often drops 5-10%
+    
+    CIFAR-10:
+    Standard: 95% clean, 0% robust
+    Adversarial: 85% clean, 45% robust
+    
+    Trade-off: Slight clean accuracy loss for robustness
+
+best_practices:
+  
+  hyperparameters:
+    - "Use PGD-10 for training (balance speed and robustness)"
+    - "epsilon during training = epsilon at test time"
+    - "Learning rate: start same as standard, may need adjustment"
+    - "Training time: 2-3x longer than standard"
+  
+  evaluation:
+    - "Evaluate with PGD-40 or stronger (not FGSM)"
+    - "Report both clean and robust accuracy"
+    - "Test multiple epsilon values"
+    - "Check white-box and black-box robustness"
+```
+
+# –––––––––––––––––––––––––––––––––––––
+
+# Topic 6: Defense Mechanisms
+
+# –––––––––––––––––––––––––––––––––––––
+
+defenses:
+
+```
+input_transformations:
+  
+  jpeg_compression:
+    method: "Compress image, then decompress (removes high-frequency noise)"
+    
+    effectiveness: |
+      Weak attacks: 20-40% reduction
+      Strong attacks: <10% reduction
+      
+      Easy to bypass with adaptive attacks
+  
+  bit_depth_reduction:
+    method: "Reduce color depth (e.g., 8-bit → 4-bit)"
+    
+    limitation: "Destroys image quality, marginal robustness gain"
+  
+  randomization:
+    method: "Random resizing, random padding"
+    
+    problem: "Obfuscated gradients, not true robustness"
+
+detection_based_defenses:
+  
+  statistical_tests:
+    method: |
+      Train detector on clean vs adversarial examples
+      Features: Prediction confidence, saliency patterns
+    
+    limitation: |
+      Adaptive attacks can evade detectors
+      Detector becomes part of attack surface
+  
+  uncertainty_estimation:
+    method: "Use model uncertainty to detect adversarial examples"
+    
+    example: |
+      Clean images: Low uncertainty
+      Adversarial: High uncertainty (model confused)
+    
+    limitation: "Confident adversarial examples exist"
+
+certified_defenses:
+  
+  randomized_smoothing:
+    concept: |
+      Add Gaussian noise at test time
+      Average predictions over noisy versions
+      Mathematically provable robustness
+    
+    guarantee: |
+      For radius r, guaranteed no adversarial example within r
+      
+      But: r typically small (0.25-0.50)
+      And: Lower accuracy (10-20% drop)
+  
+  interval_bound_propagation:
+    concept: "Track bounds on activations through network"
+    
+    limitation: "Scales poorly to large networks"
+
+defense_evaluation:
+  
+  adaptive_attacks: |
+    Critical: Test defenses against adaptive attacks
+    
+    Adaptive attack: Attacker knows defense, adapts
+    
+    Many defenses broken by adaptive attacks:
+    - Input transformations
+    - Detection
+    - Gradient obfuscation
+  
+  proper_evaluation_protocol:
+    - "White-box evaluation (attacker knows everything)"
+    - "Multiple attack methods (FGSM, PGD, C&W)"
+    - "Adaptive attacks (account for defense)"
+    - "Report clean + robust accuracy"
+    - "Compare to adversarial training baseline"
+```
+
+# –––––––––––––––––––––––––––––––––––––
+
+# Key Takeaways
+
+# –––––––––––––––––––––––––––––––––––––
+
+key_takeaways:
+
+```
+critical_concepts:
+  - "Adversarial examples are imperceptible perturbations: ε=0.03 (8/255), invisible to humans, fool models"
+  - "FGSM simple one-step attack: x_adv = x + ε·sign(∇_x L), 70-85% success rate"
+  - "PGD iterative attack stronger: 40 steps, 90%+ success, benchmark for robustness"
+  - "C&W optimization-based: finds minimal L2 perturbations, 99% success but slow"
+  - "Standard models completely vulnerable: 0% robust accuracy against PGD"
+  - "Adversarial training only reliable defense: 45-50% robust accuracy, but 5-10% clean accuracy drop"
+
+actionable_steps:
+  - "Generate adversarial examples with FGSM first: test model vulnerability, ε=0.03 typical"
+  - "Evaluate robustness with PGD-40: strongest benchmark, if robust to PGD → robust to most attacks"
+  - "Implement adversarial training for robustness: PGD-10 during training, 2-3x training time"
+  - "Report both accuracies: clean accuracy AND robust accuracy (at multiple ε values)"
+  - "Test transferability: adversarial examples from Model A → test on Model B"
+  - "Visualize perturbations: multiply by 10x for visibility, understand attack patterns"
+
+security_principles:
+  - "Adversarial examples are real threat: physical adversarial examples demonstrated (stop signs, faces)"
+  - "No silver bullet defense: input transformations broken, detection evaded, certified defenses weak"
+  - "Adversarial training essential: only defense with consistent results across evaluations"
+  - "Robustness-accuracy tradeoff fundamental: cannot achieve 100% clean + 100% robust simultaneously"
+
+evaluation_best_practices:
+  - "Always test with white-box attacks: gradient access gives strongest attacks"
+  - "Use multiple attack methods: FGSM, PGD-40, C&W at minimum"
+  - "Adaptive attacks critical: test defense against attacker who knows defense"
+  - "Report attack success rate: percentage of successful adversarial examples"
+  - "Avoid gradient obfuscation: masked gradients ≠ true robustness, test with gradient-free attacks"
+```
+
+-----
