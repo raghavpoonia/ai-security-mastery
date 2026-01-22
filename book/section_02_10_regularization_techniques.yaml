@@ -1,22 +1,23 @@
 # section_02_10_regularization_techniques.yaml
+
 ---
 document_info:
   chapter: "02"
   section: "10"
-  title: "Regularization Techniques"
+  title: "Regularization: L1, L2, Weight Decay"
   version: "1.0.0"
   author: "Raghav Dinesh"
   github: "github.com/raghavpoonia"
   license: "MIT"
-  created: "2025-01-10"
-  estimated_pages: 7
-  tags: ["regularization", "l1", "l2", "dropout", "early-stopping", "data-augmentation", "overfitting"]
+  created: "2025-01-22"
+  estimated_pages: 5
+  tags: ["regularization", "l1", "l2", "ridge", "lasso", "weight-decay", "elastic-net"]
 
 # ============================================================================
-# SECTION 02_10: REGULARIZATION TECHNIQUES
+# SECTION 02_10: REGULARIZATION - L1, L2, WEIGHT DECAY
 # ============================================================================
 
-section_02_10_regularization_techniques:
+section_02_10_l1_l2_weight_decay:
   
   # --------------------------------------------------------------------------
   # Overview and Context
@@ -25,49 +26,51 @@ section_02_10_regularization_techniques:
   overview: |
     Neural networks with millions of parameters easily memorize training data,
     achieving perfect training accuracy but failing on new data. This is
-    overfitting - the fundamental challenge in machine learning.
+    overfitting - the model learns noise instead of signal.
     
-    Regularization techniques constrain models to learn generalizable patterns
-    instead of memorizing noise. This section covers the essential methods:
-    L1/L2 weight penalties, dropout (randomly disabling neurons), early stopping
-    (halting before overfitting), and data augmentation (expanding training data).
+    Weight regularization constrains model complexity by penalizing large
+    weights. This section covers the two fundamental approaches: L2 (Ridge)
+    and L1 (Lasso) regularization, their mathematical foundations, the subtle
+    but important difference between L2 and weight decay, and how to combine
+    them (Elastic Net).
     
-    You'll implement each technique from scratch, understand their mathematical
-    foundations and implicit biases, empirically measure their impact on
-    generalization, and learn when to use each method. Critical for security:
-    regularization affects both model robustness and backdoor persistence.
+    You'll implement each method from scratch, understand their implicit biases
+    (L2 prefers many small weights, L1 induces sparsity), tune regularization
+    strength systematically, and learn their security implications for
+    adversarial robustness.
   
   learning_objectives:
     
     conceptual:
-      - "Understand overfitting vs underfitting tradeoff"
-      - "Grasp how regularization constrains hypothesis space"
-      - "Know implicit biases of each regularization method"
-      - "Understand dropout as ensemble learning"
-      - "Recognize when model needs regularization"
+      - "Understand how weight penalties constrain hypothesis space"
+      - "Grasp L2's preference for distributed representations"
+      - "Understand L1's sparsity-inducing property"
+      - "Know the subtle difference between L2 regularization and weight decay"
+      - "Recognize when overfitting occurs from learning curves"
       - "Connect regularization to generalization bounds"
     
     practical:
-      - "Implement L1, L2, dropout, early stopping"
-      - "Tune regularization hyperparameters systematically"
-      - "Diagnose overfitting from learning curves"
-      - "Apply data augmentation effectively"
-      - "Combine multiple regularization techniques"
-      - "Measure regularization impact empirically"
+      - "Implement L1, L2, and weight decay from scratch"
+      - "Tune regularization strength (λ) systematically"
+      - "Diagnose overfitting vs underfitting from train/val gap"
+      - "Combine L1 and L2 (Elastic Net)"
+      - "Measure regularization impact on test accuracy"
+      - "Apply regularization in production neural networks"
     
     security_focused:
       - "L2 regularization improves adversarial robustness"
-      - "Dropout affects backdoor persistence"
-      - "Data augmentation dilutes poisoned samples"
-      - "Early stopping can preserve backdoors"
+      - "Smaller weights → less sensitive to input perturbations"
+      - "Regularization strength affects model extraction difficulty"
+      - "Over-regularization can make models easier to fool"
   
   prerequisites:
-    - "Sections 02_05-02_08 (backpropagation, optimization)"
-    - "Understanding of overfitting"
-    - "Train/validation/test split concepts"
+    - "Sections 02_05-02_08 (backpropagation, optimization algorithms)"
+    - "Understanding of gradient descent and weight updates"
+    - "Familiarity with loss functions (cross-entropy, MSE)"
+    - "Concept of overfitting from Chapter 01"
   
   # --------------------------------------------------------------------------
-  # Topic 1: Understanding Overfitting
+  # Topic 1: Understanding Overfitting and the Need for Regularization
   # --------------------------------------------------------------------------
   
   understanding_overfitting:
@@ -75,158 +78,258 @@ section_02_10_regularization_techniques:
     the_overfitting_problem:
       
       definition: |
-        Overfitting: Model memorizes training data (including noise)
-        instead of learning underlying patterns.
+        Overfitting: Model memorizes training data (including noise and outliers)
+        instead of learning underlying generalizable patterns.
         
         Symptoms:
-        - Training accuracy: 99%
-        - Test accuracy: 70%
+        - Training loss: 0.05 (very low, near perfect)
+        - Validation loss: 0.45 (high, poor generalization)
+        - Large train-val gap (>0.3)
         
-        Large gap = overfitting
+        The model "knows" the training data perfectly but fails on new data.
       
       visual_intuition: |
-        True pattern: smooth curve
-        Overfitted model: wiggly curve through every training point
+        Classification with 10 training points:
         
-        Training data: fits perfectly
-        New data: predictions way off
+        True decision boundary: smooth curve separating classes
+        Overfitted boundary: wiggly line passing through every training point
+        
+        Training accuracy: 100% (fits all points perfectly)
+        Test accuracy: 65% (terrible on new data)
+        
+        The overfitted model learned the noise, not the signal.
       
-      capacity_and_data: |
-        Model capacity: # parameters (how complex model can be)
-        Training data: # samples
+      capacity_versus_data: |
+        Overfitting risk depends on:
         
-        High capacity + small data = overfitting risk
+        Model capacity: Total number of parameters
+        - Linear model: n_features parameters
+        - Neural network: Σ(n_l × n_{l+1}) parameters across all layers
         
-        Example:
-        - 1M parameters, 1K samples: extreme overfitting
-        - 1M parameters, 1M samples: can generalize
+        Training data size: Number of labeled examples
+        
+        Risk assessment:
+        - High capacity + Small data = EXTREME overfitting risk
+          Example: 1M parameters, 1K samples → memorization guaranteed
+        
+        - Low capacity + Large data = Underfitting risk
+          Example: 10 parameters, 1M samples → model too simple
+        
+        - Matched capacity and data = Good generalization
+          Example: 100K parameters, 100K samples → reasonable balance
     
     detecting_overfitting:
       
       learning_curves:
-        description: "Plot training and validation loss/accuracy over epochs"
+        description: |
+          Plot training and validation loss/accuracy over training epochs.
+          The train-val gap reveals overfitting.
         
         healthy_training: |
-          Epoch | Train Loss | Val Loss
-          ------|------------|----------
-            1   |   0.50     |   0.52
-            5   |   0.30     |   0.32
-           10   |   0.15     |   0.18
-           20   |   0.08     |   0.10
+          Epoch | Train Loss | Val Loss | Gap
+          ------|------------|----------|-----
+            1   |   0.50     |   0.52   | 0.02
+            5   |   0.30     |   0.32   | 0.02
+           10   |   0.15     |   0.18   | 0.03
+           20   |   0.08     |   0.10   | 0.02
+           50   |   0.05     |   0.07   | 0.02
           
-          Both decrease together (small gap)
+          Both losses decrease together, small gap (<0.05)
+          → Good generalization
         
         overfitting: |
-          Epoch | Train Loss | Val Loss
-          ------|------------|----------
-            1   |   0.50     |   0.52
-            5   |   0.30     |   0.35
-           10   |   0.15     |   0.40
-           20   |   0.05     |   0.55
+          Epoch | Train Loss | Val Loss | Gap
+          ------|------------|----------|-----
+            1   |   0.50     |   0.52   | 0.02
+            5   |   0.30     |   0.35   | 0.05
+           10   |   0.15     |   0.40   | 0.25
+           20   |   0.05     |   0.55   | 0.50
+           50   |   0.01     |   0.70   | 0.69
           
-          Train keeps improving, val gets worse!
+          Train loss keeps decreasing, val loss INCREASES!
+          Large and growing gap (>0.3)
+          → Severe overfitting
         
         underfitting: |
-          Epoch | Train Loss | Val Loss
-          ------|------------|----------
-            1   |   0.50     |   0.52
-            5   |   0.45     |   0.48
-           10   |   0.43     |   0.47
-           20   |   0.42     |   0.46
+          Epoch | Train Loss | Val Loss | Gap
+          ------|------------|----------|-----
+            1   |   0.50     |   0.52   | 0.02
+            5   |   0.45     |   0.48   | 0.03
+           10   |   0.43     |   0.47   | 0.04
+           20   |   0.42     |   0.46   | 0.04
+           50   |   0.42     |   0.46   | 0.04
           
-          Both high, not improving (model too simple)
+          Both losses plateau at high values
+          → Model too simple (underfitting)
       
       implementation: |
         def plot_learning_curves(history):
             """
-            Plot training and validation curves to diagnose overfitting.
+            Visualize training and validation curves to diagnose overfitting.
+            
+            Parameters:
+            - history: dict with keys ['train_loss', 'val_loss', 
+                       'train_accuracy', 'val_accuracy']
             """
             import matplotlib.pyplot as plt
             
             epochs = range(1, len(history['train_loss']) + 1)
             
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
             
             # Loss curves
-            ax1.plot(epochs, history['train_loss'], 'b-', label='Training')
-            ax1.plot(epochs, history['val_loss'], 'r-', label='Validation')
-            ax1.set_xlabel('Epoch')
-            ax1.set_ylabel('Loss')
-            ax1.set_title('Loss Curves')
-            ax1.legend()
+            ax1.plot(epochs, history['train_loss'], 'b-', linewidth=2, 
+                    label='Training Loss')
+            ax1.plot(epochs, history['val_loss'], 'r-', linewidth=2, 
+                    label='Validation Loss')
+            ax1.set_xlabel('Epoch', fontsize=12)
+            ax1.set_ylabel('Loss', fontsize=12)
+            ax1.set_title('Loss Curves', fontsize=14, fontweight='bold')
+            ax1.legend(fontsize=11)
             ax1.grid(True, alpha=0.3)
             
             # Accuracy curves
-            ax2.plot(epochs, history['train_accuracy'], 'b-', label='Training')
-            ax2.plot(epochs, history['val_accuracy'], 'r-', label='Validation')
-            ax2.set_xlabel('Epoch')
-            ax2.set_ylabel('Accuracy')
-            ax2.set_title('Accuracy Curves')
-            ax2.legend()
+            ax2.plot(epochs, history['train_accuracy'], 'b-', linewidth=2,
+                    label='Training Accuracy')
+            ax2.plot(epochs, history['val_accuracy'], 'r-', linewidth=2,
+                    label='Validation Accuracy')
+            ax2.set_xlabel('Epoch', fontsize=12)
+            ax2.set_ylabel('Accuracy', fontsize=12)
+            ax2.set_title('Accuracy Curves', fontsize=14, fontweight='bold')
+            ax2.legend(fontsize=11)
             ax2.grid(True, alpha=0.3)
             
             plt.tight_layout()
             plt.show()
             
-            # Diagnosis
-            final_train = history['train_loss'][-1]
-            final_val = history['val_loss'][-1]
-            gap = final_val - final_train
+            # Automated diagnosis
+            final_train_loss = history['train_loss'][-1]
+            final_val_loss = history['val_loss'][-1]
+            gap = final_val_loss - final_train_loss
             
-            if gap > 0.1:
-                print("⚠️ OVERFITTING: Large train-val gap")
-            elif final_train > 0.3 and final_val > 0.3:
-                print("⚠️ UNDERFITTING: Both losses high")
+            print("\n" + "="*50)
+            print("TRAINING DIAGNOSIS")
+            print("="*50)
+            print(f"Final Training Loss:   {final_train_loss:.4f}")
+            print(f"Final Validation Loss: {final_val_loss:.4f}")
+            print(f"Train-Val Gap:         {gap:.4f}")
+            print("-"*50)
+            
+            if gap > 0.15:
+                print("⚠️  SEVERE OVERFITTING")
+                print("   → Model memorizing training data")
+                print("   → Action: Increase regularization (L2, dropout)")
+            elif gap > 0.05:
+                print("⚠️  MODERATE OVERFITTING")
+                print("   → Some memorization occurring")
+                print("   → Action: Add regularization or get more data")
+            elif final_train_loss > 0.3 and final_val_loss > 0.3:
+                print("⚠️  UNDERFITTING")
+                print("   → Model too simple or undertraining")
+                print("   → Action: Increase capacity or train longer")
             else:
-                print("✓ Healthy training")
-  
-  # --------------------------------------------------------------------------
-  # Topic 2: L1 and L2 Regularization
-  # --------------------------------------------------------------------------
-  
-  weight_regularization:
+                print("✓  HEALTHY TRAINING")
+                print("   → Good generalization")
+            print("="*50)
     
-    l2_regularization:
+    why_regularization_works:
       
-      motivation: "Penalize large weights → prefer simpler models"
+      hypothesis_space_constraint: |
+        Without regularization:
+        Hypothesis space = ALL possible weight configurations
+        → Model can memorize any training set
+        
+        With regularization:
+        Hypothesis space = Weight configurations with small norms
+        → Model forced to find simple patterns
+        
+        Simple patterns generalize better than complex memorization.
       
-      formula: |
-        Modified loss:
-        L_total = L_data + λ/2 · Σ(W²)
+      occams_razor: |
+        Occam's Razor: "Prefer simpler explanations over complex ones"
+        
+        Regularization mathematically enforces simplicity:
+        - Small weights = simpler model
+        - Large weights = complex model (sensitive to small input changes)
+        
+        Given two models with same training accuracy:
+        - Model A: weights = [0.1, 0.2, 0.1, 0.15] (simple)
+        - Model B: weights = [10.5, -8.3, 12.1, -9.7] (complex)
+        
+        Regularization prefers Model A → better generalization.
+  
+  # --------------------------------------------------------------------------
+  # Topic 2: L2 Regularization (Ridge)
+  # --------------------------------------------------------------------------
+  
+  l2_regularization:
+    
+    mathematical_formulation:
+      
+      modified_loss_function: |
+        Original loss (data fitting):
+        L_data(W) = (1/m) Σ_{i=1}^m Loss(y_pred^{(i)}, y_true^{(i)})
+        
+        L2 regularized loss:
+        L_total(W) = L_data(W) + (λ/2) · ||W||²₂
         
         Where:
-        - L_data = original loss (e.g., cross-entropy)
-        - λ = regularization strength
-        - Σ(W²) = sum of squared weights
-      
-      gradient: |
-        ∂L_total/∂W = ∂L_data/∂W + λ·W
-        
-        Update rule:
-        W ← W - α·(∂L_data/∂W + λ·W)
-          = W·(1 - α·λ) - α·∂L_data/∂W
-          \_____________/
-           Weight decay
-        
-        Each update shrinks weights by factor (1 - α·λ)
+        - λ (lambda): regularization strength (hyperparameter)
+        - ||W||²₂ = Σ_{all weights} W²_{ij} (sum of squared weights)
+        - Factor 1/2: mathematical convenience (cancels in gradient)
       
       interpretation: |
-        L2 prefers many small weights over few large weights.
+        L_total = Data fit term + Penalty for large weights
         
-        Example:
-        W1 = [10, 0, 0]: penalty = 100
-        W2 = [5, 5, 0]: penalty = 50 (preferred!)
-        W3 = [3, 3, 3]: penalty = 27 (most preferred!)
+        The model must balance:
+        1. Fitting training data (minimize L_data)
+        2. Keeping weights small (minimize ||W||²)
         
-        Spreads weight across many connections (distributed representations)
+        λ controls the tradeoff:
+        - λ = 0: No regularization (pure data fitting, risk overfitting)
+        - λ → ∞: Extreme regularization (all weights → 0, underfitting)
+        - λ optimal: Perfect balance
       
-      implementation: |
+      gradient_derivation: |
+        Gradient of L_total with respect to weights:
+        
+        ∂L_total/∂W = ∂L_data/∂W + ∂(λ/2 · ||W||²)/∂W
+                    = ∂L_data/∂W + λ·W
+        
+        Proof of regularization term gradient:
+        ∂(λ/2 · Σ W²)/∂W = λ/2 · ∂(Σ W²)/∂W
+                         = λ/2 · 2W
+                         = λ·W
+        
+        (The factor 1/2 cancels with the 2 from derivative of W²)
+      
+      weight_update_rule: |
+        Gradient descent update with L2:
+        
+        W^{new} = W^{old} - α · ∂L_total/∂W
+                = W^{old} - α · (∂L_data/∂W + λ·W)
+                = W^{old} - α·∂L_data/∂W - α·λ·W
+                = W^{old}·(1 - α·λ) - α·∂L_data/∂W
+                  \_________________/   \______________/
+                    Weight decay         Data gradient
+        
+        Key insight: Each update SHRINKS weights by factor (1 - α·λ)
+        This is why L2 is called "weight decay"!
+    
+    implementation:
+      
+      l2_regularizer_class: |
+        import numpy as np
+        
         class L2Regularizer:
             """
-            L2 weight regularization (weight decay).
+            L2 (Ridge) weight regularization.
+            
+            Adds penalty λ/2 · ||W||²₂ to loss function.
+            Gradient: λ·W (weight decay)
             
             Parameters:
-            - lambda_reg: regularization strength (typical: 0.001-0.1)
+            - lambda_reg: regularization strength (typical: 0.0001 to 0.1)
             """
             
             def __init__(self, lambda_reg=0.01):
@@ -234,44 +337,74 @@ section_02_10_regularization_techniques:
             
             def compute_penalty(self, parameters):
                 """
-                Compute L2 penalty: λ/2 · Σ(W²)
+                Compute L2 penalty: (λ/2) · Σ(W²)
+                
+                Parameters:
+                - parameters: dict of {name: array}
+                              e.g., {'W1': array, 'b1': array, 'W2': array, ...}
+                
+                Returns:
+                - penalty: scalar
+                
+                Note: Only regularize weights (W), NOT biases (b)
                 """
                 penalty = 0.0
-                for param_name, param in parameters.items():
-                    if param_name.startswith('W'):  # Only weights, not biases
-                        penalty += np.sum(param ** 2)
-                return 0.5 * self.lambda_reg * penalty
+                
+                for param_name, param_value in parameters.items():
+                    # Only regularize weight matrices, skip biases
+                    if param_name.startswith('W'):
+                        penalty += np.sum(param_value ** 2)
+                
+                return (self.lambda_reg / 2.0) * penalty
             
             def compute_gradient(self, parameters):
                 """
-                Compute gradient of penalty: λ·W
+                Compute gradient of L2 penalty: λ·W
+                
+                Returns:
+                - grad_penalty: dict with same structure as parameters
                 """
                 grad_penalty = {}
-                for param_name, param in parameters.items():
+                
+                for param_name, param_value in parameters.items():
                     if param_name.startswith('W'):
-                        grad_penalty[param_name] = self.lambda_reg * param
+                        # Gradient of (λ/2)·W² is λ·W
+                        grad_penalty[param_name] = self.lambda_reg * param_value
                     else:
-                        grad_penalty[param_name] = np.zeros_like(param)
+                        # No regularization on biases
+                        grad_penalty[param_name] = np.zeros_like(param_value)
+                
                 return grad_penalty
-        
-        # Usage in training loop
+            
+            def __repr__(self):
+                return f"L2Regularizer(λ={self.lambda_reg})"
+      
+      training_loop_integration: |
+        # Initialize network and regularizer
+        network = NeuralNetwork(layer_dims=[784, 128, 64, 10])
+        optimizer = Adam(learning_rate=0.001)
         regularizer = L2Regularizer(lambda_reg=0.01)
         
-        for epoch in range(epochs):
-            for X_batch, y_batch in dataloader:
-                # Forward
-                loss_data, _ = network.forward(X_batch, y_batch)
+        # Training loop
+        for epoch in range(num_epochs):
+            epoch_loss = 0.0
+            
+            for X_batch, y_batch in train_loader:
+                # Forward pass (data loss only)
+                loss_data, predictions = network.forward(X_batch, y_batch)
                 
-                # Add regularization penalty
+                # Add regularization penalty to loss
                 params = network.get_parameters()
                 loss_reg = regularizer.compute_penalty(params)
                 loss_total = loss_data + loss_reg
                 
-                # Backward
-                network.backward()
+                epoch_loss += loss_total
                 
-                # Add regularization gradient
+                # Backward pass (data gradients)
+                network.backward()
                 grads_data = network.get_gradients()
+                
+                # Add regularization gradients
                 grads_reg = regularizer.compute_gradient(params)
                 
                 # Combine gradients
@@ -279,59 +412,157 @@ section_02_10_regularization_techniques:
                 for name in grads_data:
                     grads_total[name] = grads_data[name] + grads_reg[name]
                 
-                # Update
+                # Update weights
                 optimizer.step(params, grads_total)
-      
-      hyperparameter_tuning: |
-        λ values to try: [0.0001, 0.001, 0.01, 0.1, 1.0]
-        
-        Too small (λ < 0.0001): No effect, still overfits
-        Too large (λ > 0.1): Underfits, weights too constrained
-        Good range: 0.001 - 0.01
-        
-        Strategy:
-        1. Start with λ = 0.01
-        2. If still overfitting: increase λ
-        3. If underfitting: decrease λ
+            
+            # Logging
+            avg_loss = epoch_loss / len(train_loader)
+            val_loss, val_acc = evaluate(network, val_loader)
+            print(f"Epoch {epoch+1}: train_loss={avg_loss:.4f}, "
+                  f"val_loss={val_loss:.4f}, val_acc={val_acc:.3f}")
     
-    l1_regularization:
+    why_l2_prefers_distributed_representations:
       
-      formula: |
-        Modified loss:
-        L_total = L_data + λ · Σ|W|
+      mathematical_explanation: |
+        L2 penalty: ||W||²₂ = Σ W²ᵢ
         
-        Sum of absolute values (L1 norm)
+        Consider two weight vectors with same L1 norm but different L2 norms:
+        
+        Vector A: [10, 0, 0, 0]
+        - L1 norm: 10
+        - L2 norm²: 100
+        - L2 penalty: 100
+        
+        Vector B: [2.5, 2.5, 2.5, 2.5]
+        - L1 norm: 10 (same as A)
+        - L2 norm²: 25
+        - L2 penalty: 25 (much lower!)
+        
+        L2 prefers B: many small weights over few large weights.
+      
+      interpretation: |
+        L2 encourages "democratic" weight distributions:
+        - All features contribute somewhat
+        - No single feature dominates
+        - Distributed representations (information spread across network)
+        
+        This is why L2 is the default regularization in deep learning.
+      
+      example_mnist: |
+        Without L2: Some weights = 15.3, others = 0.01 (sparse, extreme)
+        With L2: Most weights = 0.5-2.0 (distributed, balanced)
+        
+        The L2-regularized model uses more neurons cooperatively.
+    
+    hyperparameter_tuning:
+      
+      lambda_values_to_try: |
+        Start with logarithmic grid search:
+        λ ∈ {0.0001, 0.001, 0.01, 0.1, 1.0}
+        
+        Typical good range: 0.001 to 0.01
+      
+      tuning_strategy: |
+        1. Baseline: Train without regularization (λ = 0)
+           - Observe overfitting (train-val gap)
+        
+        2. Try λ = 0.01 (standard starting point)
+           - If still overfitting: increase λ
+           - If underfitting: decrease λ
+        
+        3. Binary search around optimal value
+           - If 0.01 good but not perfect, try 0.005 and 0.02
+        
+        4. Validate on held-out validation set (NOT test set!)
+      
+      signs_of_correct_lambda: |
+        Too small (λ < 0.0001):
+        - Train-val gap still large (>0.2)
+        - No improvement over unregularized
+        
+        Too large (λ > 0.1):
+        - Training loss stops decreasing
+        - Both train and val loss high (underfitting)
+        - Weights shrink to near-zero
+        
+        Just right (λ ≈ 0.001 - 0.01):
+        - Train-val gap small (<0.05)
+        - Both losses decrease smoothly
+        - Test accuracy improves 2-5%
+  
+  # --------------------------------------------------------------------------
+  # Topic 3: L1 Regularization (Lasso)
+  # --------------------------------------------------------------------------
+  
+  l1_regularization:
+    
+    mathematical_formulation:
+      
+      modified_loss_function: |
+        L1 regularized loss:
+        L_total(W) = L_data(W) + λ · ||W||₁
+        
+        Where:
+        - ||W||₁ = Σ_{all weights} |W_{ij}| (sum of absolute values)
       
       gradient: |
-        ∂L_total/∂W = ∂L_data/∂W + λ·sign(W)
+        ∂L_total/∂W = ∂L_data/∂W + λ · sign(W)
         
-        Where sign(W) = +1 if W > 0, -1 if W < 0
+        Where sign(W) = {+1 if W > 0, -1 if W < 0, 0 if W = 0}
+        
+        Key difference from L2:
+        - L2 gradient: λ·W (proportional to weight magnitude)
+        - L1 gradient: λ·sign(W) (constant magnitude, direction depends on sign)
+    
+    sparsity_inducing_property:
       
-      sparsity_inducing: |
-        L1 pushes weights to exactly zero (sparse models).
+      why_l1_creates_zeros: |
+        L1 gradient is CONSTANT: λ·sign(W)
         
-        Why: Constant gradient λ·sign(W)
-        Small weights: gradient dominates → pushed to 0
-        Large weights: data gradient dominates → stays large
+        Small weight (e.g., W = 0.001):
+        - Data gradient: ~0.01 (small)
+        - L1 gradient: λ = 0.01 (SAME magnitude regardless of W!)
+        - L1 dominates → pushes W to exactly 0
         
-        Result: Many weights = 0, few weights ≠ 0
+        Large weight (e.g., W = 5.0):
+        - Data gradient: ~2.0 (large)
+        - L1 gradient: λ = 0.01 (small relative to data gradient)
+        - Data gradient dominates → W stays large
+        
+        Result: Small weights → 0, large weights survive → SPARSE model
       
-      comparison_l1_vs_l2: |
-        L2 (Ridge):
-        - Many small weights
-        - Distributed representations
-        - Smooth, continuous optimization
+      visual_intuition: |
+        L2 regularization: Smooth, continuous shrinkage
+        - All weights shrink proportionally
+        - Weights approach 0 but rarely reach exactly 0
         
-        L1 (Lasso):
-        - Few large weights, many zeros
-        - Sparse representations
-        - Feature selection (zeros = unused features)
-        - Non-differentiable at 0 (need subgradient)
+        L1 regularization: "Hard thresholding"
+        - Weights below threshold → pushed to 0
+        - Weights above threshold → stay large
+        - Creates exact zeros (sparse weights)
       
-      implementation: |
+      feature_selection: |
+        L1 performs automatic feature selection:
+        
+        Input features: 1000 dimensions
+        After L1 training: 950 weights = 0, 50 weights ≠ 0
+        
+        Interpretation: Only 50 features matter, rest are noise.
+        
+        This is why L1 is called "Lasso" (Least Absolute Shrinkage 
+        and Selection Operator).
+    
+    implementation:
+      
+      l1_regularizer_class: |
         class L1Regularizer:
             """
-            L1 weight regularization (Lasso).
+            L1 (Lasso) weight regularization.
+            
+            Adds penalty λ · ||W||₁ to loss function.
+            Gradient: λ·sign(W) (constant magnitude)
+            
+            Induces sparsity: many weights → 0
             """
             
             def __init__(self, lambda_reg=0.01):
@@ -342,709 +573,369 @@ section_02_10_regularization_techniques:
                 Compute L1 penalty: λ · Σ|W|
                 """
                 penalty = 0.0
-                for param_name, param in parameters.items():
+                
+                for param_name, param_value in parameters.items():
                     if param_name.startswith('W'):
-                        penalty += np.sum(np.abs(param))
+                        penalty += np.sum(np.abs(param_value))
+                
                 return self.lambda_reg * penalty
             
             def compute_gradient(self, parameters):
                 """
-                Compute gradient: λ·sign(W)
+                Compute gradient of L1 penalty: λ·sign(W)
+                
+                Note: sign(0) = 0 by convention (subgradient)
                 """
                 grad_penalty = {}
-                for param_name, param in parameters.items():
+                
+                for param_name, param_value in parameters.items():
                     if param_name.startswith('W'):
-                        grad_penalty[param_name] = self.lambda_reg * np.sign(param)
+                        # sign(W): +1 if W>0, -1 if W<0, 0 if W=0
+                        grad_penalty[param_name] = self.lambda_reg * np.sign(param_value)
                     else:
-                        grad_penalty[param_name] = np.zeros_like(param)
+                        grad_penalty[param_name] = np.zeros_like(param_value)
+                
                 return grad_penalty
+            
+            def __repr__(self):
+                return f"L1Regularizer(λ={self.lambda_reg})"
       
-      when_to_use: |
-        Use L1 when:
-        - Want sparse models (feature selection)
-        - Have many irrelevant features
-        - Model interpretability important
+      measuring_sparsity: |
+        def measure_sparsity(parameters):
+            """
+            Measure percentage of weights that are exactly zero.
+            """
+            total_weights = 0
+            zero_weights = 0
+            
+            for param_name, param_value in parameters.items():
+                if param_name.startswith('W'):
+                    total_weights += param_value.size
+                    # Count weights very close to zero
+                    zero_weights += np.sum(np.abs(param_value) < 1e-6)
+            
+            sparsity_pct = 100 * zero_weights / total_weights
+            return sparsity_pct
         
-        Use L2 when:
-        - Want all features to contribute
-        - Standard regularization (most common)
-        - Better with correlated features
+        # After training with L1
+        params = network.get_parameters()
+        sparsity = measure_sparsity(params)
+        print(f"Model sparsity: {sparsity:.1f}% of weights are zero")
+        
+        # Example output with L1:
+        # Model sparsity: 73.2% of weights are zero
     
-    elastic_net:
+    l1_versus_l2_comparison:
       
-      combining_l1_and_l2: |
-        Elastic Net = L1 + L2
-        
-        L_total = L_data + λ₁·Σ|W| + λ₂/2·Σ(W²)
-        
-        Benefits of both:
-        - Sparsity from L1
-        - Stability from L2
+      summary_table: |
+        Property              | L2 (Ridge)            | L1 (Lasso)
+        ----------------------|-----------------------|------------------------
+        Penalty               | λ/2 · Σ(W²)          | λ · Σ|W|
+        Gradient              | λ·W (proportional)    | λ·sign(W) (constant)
+        Effect on weights     | Shrinks all weights   | Zeros out small weights
+        Sparsity              | No                    | Yes (many exact zeros)
+        Interpretation        | Distributed features  | Feature selection
+        Robustness            | Better with correlated| Better with many irrelevant
+                              | features              | features
+        Optimization          | Smooth, differentiable| Non-differentiable at 0
+        Most common           | Yes (standard choice) | No (specialized use)
       
-      implementation: |
+      when_to_use_l1: |
+        Use L1 regularization when:
+        - You have many features (>1000) and suspect many are irrelevant
+        - You want automatic feature selection
+        - Model interpretability is critical (sparse = simpler)
+        - You're willing to accept slower convergence
+        
+        Example: Text classification with 100K word features
+        → L1 can reduce to 5K important words
+      
+      when_to_use_l2: |
+        Use L2 regularization when:
+        - Standard neural network training (most common case)
+        - All features are potentially useful
+        - You want smooth optimization (no non-differentiability issues)
+        - Features are correlated (L1 picks one, L2 uses all)
+        
+        Example: Image classification (all pixels potentially matter)
+  
+  # --------------------------------------------------------------------------
+  # Topic 4: Weight Decay vs L2 Regularization (Subtle but Important)
+  # --------------------------------------------------------------------------
+  
+  weight_decay_versus_l2:
+    
+    the_confusion:
+      
+      common_misconception: |
+        "Weight decay and L2 regularization are the same thing."
+        
+        This is TRUE for standard SGD, but FALSE for adaptive optimizers 
+        (Adam, RMSprop, AdaGrad)!
+      
+      difference_with_adaptive_optimizers: |
+        L2 Regularization:
+        - Add λ·W to gradient
+        - Gradient → optimizer (Adam, RMSprop, etc.)
+        - Optimizer applies adaptive learning rates
+        
+        Weight Decay:
+        - Apply λ·W DIRECTLY to weights after optimizer step
+        - Bypass adaptive learning rates for decay
+        
+        Result: Different behavior with adaptive optimizers!
+    
+    mathematical_detail:
+      
+      l2_regularization_with_adam: |
+        Standard L2 + Adam:
+        
+        1. Compute gradient: g_t = ∇L_data + λ·W_t
+        2. Adam momentum update: m_t = β₁·m_{t-1} + (1-β₁)·g_t
+        3. Adam variance update: v_t = β₂·v_{t-1} + (1-β₂)·g_t²
+        4. Adam step: W_{t+1} = W_t - α · m_t/√(v_t + ε)
+        
+        Problem: λ·W_t gets rescaled by Adam's adaptive learning rate!
+        The effective weight decay varies across parameters.
+      
+      true_weight_decay_with_adam: |
+        Weight Decay (AdamW):
+        
+        1. Compute gradient: g_t = ∇L_data (NO λ·W here!)
+        2. Adam momentum update: m_t = β₁·m_{t-1} + (1-β₁)·g_t
+        3. Adam variance update: v_t = β₂·v_{t-1} + (1-β₂)·g_t²
+        4. Adam step: W_{t+1} = W_t - α · m_t/√(v_t + ε)
+        5. Weight decay: W_{t+1} = W_{t+1} - λ·W_t  (AFTER Adam step)
+        
+        Result: Uniform weight decay across all parameters, not affected
+        by adaptive learning rates.
+      
+      with_sgd_they_are_equivalent: |
+        SGD update with L2:
+        W_{t+1} = W_t - α·(∇L_data + λ·W_t)
+                = W_t - α·∇L_data - α·λ·W_t
+                = W_t·(1 - α·λ) - α·∇L_data
+        
+        SGD update with weight decay:
+        W_{t+1} = W_t - α·∇L_data - λ·W_t
+                = W_t·(1 - λ) - α·∇L_data
+        
+        These are equivalent if we set: λ_decay = α·λ_L2
+        
+        So for SGD: L2 regularization = weight decay (just different λ)
+    
+    practical_implementation:
+      
+      adamw_optimizer: |
+        class AdamW:
+            """
+            Adam optimizer with decoupled weight decay (AdamW).
+            
+            References:
+            - "Decoupled Weight Decay Regularization" (Loshchilov & Hutter, 2019)
+            
+            Parameters:
+            - learning_rate: step size (α)
+            - beta1, beta2: momentum parameters
+            - weight_decay: λ (applied directly to weights)
+            """
+            
+            def __init__(self, learning_rate=0.001, beta1=0.9, beta2=0.999,
+                        epsilon=1e-8, weight_decay=0.01):
+                self.lr = learning_rate
+                self.beta1 = beta1
+                self.beta2 = beta2
+                self.epsilon = epsilon
+                self.weight_decay = weight_decay
+                
+                # Momentum and variance accumulators
+                self.m = {}  # First moment
+                self.v = {}  # Second moment
+                self.t = 0   # Time step
+            
+            def step(self, parameters, gradients):
+                """
+                Update parameters using AdamW algorithm.
+                
+                Note: gradients should NOT include λ·W term (that's weight decay's job)
+                """
+                self.t += 1
+                
+                for param_name in parameters:
+                    param = parameters[param_name]
+                    grad = gradients[param_name]
+                    
+                    # Initialize momentum on first step
+                    if param_name not in self.m:
+                        self.m[param_name] = np.zeros_like(param)
+                        self.v[param_name] = np.zeros_like(param)
+                    
+                    # Update biased first moment estimate
+                    self.m[param_name] = self.beta1 * self.m[param_name] + \
+                                        (1 - self.beta1) * grad
+                    
+                    # Update biased second raw moment estimate
+                    self.v[param_name] = self.beta2 * self.v[param_name] + \
+                                        (1 - self.beta2) * (grad ** 2)
+                    
+                    # Bias correction
+                    m_hat = self.m[param_name] / (1 - self.beta1 ** self.t)
+                    v_hat = self.v[param_name] / (1 - self.beta2 ** self.t)
+                    
+                    # Adam update (WITHOUT weight decay in gradient)
+                    param -= self.lr * m_hat / (np.sqrt(v_hat) + self.epsilon)
+                    
+                    # Weight decay (AFTER Adam step, only on weights not biases)
+                    if param_name.startswith('W'):
+                        param -= self.weight_decay * param
+      
+      when_to_use_which: |
+        Use L2 Regularizer + SGD:
+        - Simple baseline
+        - Equivalent to weight decay for SGD
+        
+        Use Weight Decay (AdamW):
+        - When using adaptive optimizers (Adam, RMSprop)
+        - Modern best practice for transformers, LLMs
+        - Better generalization empirically
+        
+        Default recommendation: AdamW for deep learning (2024 standard)
+  
+  # --------------------------------------------------------------------------
+  # Topic 5: Elastic Net (L1 + L2 Combined)
+  # --------------------------------------------------------------------------
+  
+  elastic_net:
+    
+    motivation:
+      
+      combining_best_of_both: |
+        L1 alone: Sparse but unstable with correlated features
+        L2 alone: Distributed but no feature selection
+        
+        Elastic Net: Get sparsity AND stability
+      
+      formula: |
+        L_total = L_data + λ₁·||W||₁ + (λ₂/2)·||W||²₂
+        
+        Two hyperparameters: λ₁ (L1 strength), λ₂ (L2 strength)
+    
+    implementation:
+      
+      elastic_net_regularizer: |
         class ElasticNetRegularizer:
+            """
+            Elastic Net: L1 + L2 regularization combined.
+            
+            Penalty: λ₁·||W||₁ + (λ₂/2)·||W||²₂
+            
+            Benefits:
+            - Sparsity from L1
+            - Stability from L2
+            """
+            
             def __init__(self, l1_lambda=0.01, l2_lambda=0.01):
-                self.l1 = L1Regularizer(l1_lambda)
-                self.l2 = L2Regularizer(l2_lambda)
+                self.l1 = L1Regularizer(lambda_reg=l1_lambda)
+                self.l2 = L2Regularizer(lambda_reg=l2_lambda)
             
             def compute_penalty(self, parameters):
+                """Total penalty = L1 penalty + L2 penalty"""
                 return self.l1.compute_penalty(parameters) + \
                        self.l2.compute_penalty(parameters)
             
             def compute_gradient(self, parameters):
+                """Total gradient = L1 gradient + L2 gradient"""
                 grad_l1 = self.l1.compute_gradient(parameters)
                 grad_l2 = self.l2.compute_gradient(parameters)
+                
                 grad_total = {}
-                for name in grad_l1:
-                    grad_total[name] = grad_l1[name] + grad_l2[name]
+                for param_name in grad_l1:
+                    grad_total[param_name] = grad_l1[param_name] + grad_l2[param_name]
+                
                 return grad_total
-  
-  # --------------------------------------------------------------------------
-  # Topic 3: Dropout
-  # --------------------------------------------------------------------------
-  
-  dropout:
-    
-    motivation:
-      
-      problem: "Networks co-adapt - neurons rely on specific other neurons"
-      
-      solution: |
-        Randomly "drop out" (disable) neurons during training.
-        Forces network to learn redundant representations.
-        No single neuron can be relied upon.
-      
-      ensemble_interpretation: |
-        Dropout = training exponentially many networks, averaging predictions
-        
-        With N neurons, dropout samples 2^N possible subnetworks
-        Final prediction = average of all subnetworks
-    
-    algorithm:
-      
-      training_time: |
-        For each training iteration:
-        1. For each layer, each neuron independently:
-           - Keep active with probability p (e.g., 0.5)
-           - Set to 0 with probability 1-p
-        2. Forward pass with dropped neurons
-        3. Backward pass (gradients only flow through active neurons)
-        4. Update only active neurons
-      
-      test_time: |
-        Use all neurons, but scale outputs by p
-        
-        Why: Training saw p·N neurons on average
-        Testing uses N neurons (all)
-        Need to scale down by p to match training regime
-      
-      inverted_dropout: |
-        Alternative (more common):
-        - Training: scale active neurons by 1/p
-        - Testing: use all neurons, no scaling needed
-        
-        Advantage: No modification needed at test time
-    
-    implementation:
-      
-      dropout_layer: |
-        class DropoutLayer:
-            """
-            Dropout: randomly drop neurons during training.
             
-            Parameters:
-            - p: keep probability (typical: 0.5-0.8)
-            - training: whether in training mode
-            """
-            
-            def __init__(self, p=0.5):
-                self.p = p
-                self.training = True
-                self.mask = None
-            
-            def forward(self, a):
-                """
-                Apply dropout to activations.
-                
-                Parameters:
-                - a: (n_neurons, batch_size) activations
-                
-                Returns:
-                - a_dropped: activations with dropout applied
-                """
-                if self.training:
-                    # Generate dropout mask (1 = keep, 0 = drop)
-                    self.mask = np.random.binomial(1, self.p, size=a.shape)
-                    
-                    # Apply mask and scale by 1/p (inverted dropout)
-                    a_dropped = a * self.mask / self.p
-                    return a_dropped
-                else:
-                    # Test time: use all neurons, no scaling
-                    return a
-            
-            def backward(self, dL_da):
-                """
-                Backward pass: gradients only through active neurons.
-                """
-                if self.training:
-                    # Gradient flows only through active neurons
-                    dL_da_prev = dL_da * self.mask / self.p
-                    return dL_da_prev
-                else:
-                    return dL_da
-            
-            def train(self):
-                """Set to training mode"""
-                self.training = True
-            
-            def eval(self):
-                """Set to evaluation mode"""
-                self.training = False
-      
-      network_integration: |
-        class NeuralNetworkWithDropout:
-            def __init__(self, layer_dims, dropout_probs):
-                """
-                layer_dims: [input_size, hidden1, hidden2, ..., output]
-                dropout_probs: dropout for each hidden layer (list)
-                """
-                self.layer_dims = layer_dims
-                self.num_layers = len(layer_dims) - 1
-                
-                # Linear layers
-                self.linear_layers = []
-                for l in range(self.num_layers):
-                    linear = LinearLayer(layer_dims[l], layer_dims[l+1])
-                    self.linear_layers.append(linear)
-                
-                # Activation layers
-                self.activation_layers = []
-                for l in range(self.num_layers - 1):
-                    self.activation_layers.append(ReLULayer())
-                
-                # Dropout layers (after each hidden activation)
-                self.dropout_layers = []
-                for l, p in enumerate(dropout_probs):
-                    self.dropout_layers.append(DropoutLayer(p=p))
-                
-                self.output_layer = SoftmaxCrossEntropyLayer()
-            
-            def forward(self, x, y_true=None):
-                a = x
-                for l in range(self.num_layers):
-                    # Linear
-                    z = self.linear_layers[l].forward(a)
-                    
-                    # Activation (except last layer)
-                    if l < self.num_layers - 1:
-                        a = self.activation_layers[l].forward(z)
-                        # Dropout after activation
-                        a = self.dropout_layers[l].forward(a)
-                    else:
-                        logits = z
-                
-                if y_true is not None:
-                    loss, predictions = self.output_layer.forward(logits, y_true)
-                    return loss, predictions
-                else:
-                    # Inference: softmax only
-                    z_shifted = logits - np.max(logits, axis=0, keepdims=True)
-                    exp_z = np.exp(z_shifted)
-                    predictions = exp_z / np.sum(exp_z, axis=0, keepdims=True)
-                    return predictions
-            
-            def train(self):
-                """Set network to training mode"""
-                for dropout in self.dropout_layers:
-                    dropout.train()
-            
-            def eval(self):
-                """Set network to evaluation mode"""
-                for dropout in self.dropout_layers:
-                    dropout.eval()
-      
-      usage_example: |
-        # Create network with dropout
-        network = NeuralNetworkWithDropout(
-            layer_dims=[784, 512, 256, 10],
-            dropout_probs=[0.5, 0.5]  # 50% dropout after each hidden layer
-        )
-        
-        # Training
-        network.train()
-        for epoch in range(epochs):
-            for X_batch, y_batch in train_loader:
-                loss = network.train_step(X_batch, y_batch)
-        
-        # Evaluation
-        network.eval()
-        val_loss, val_acc = evaluate(network, X_val, y_val)
-    
-    hyperparameter_selection:
-      
-      keep_probability: |
-        p = 1.0: No dropout
-        p = 0.9: Light dropout (10% dropped)
-        p = 0.8: Moderate dropout (20% dropped)
-        p = 0.5: Standard dropout (50% dropped)
-        p = 0.2: Heavy dropout (80% dropped)
-        
-        Guidelines:
-        - Input layer: p = 0.8-1.0 (light or no dropout)
-        - Hidden layers: p = 0.5-0.8 (moderate to standard)
-        - Output layer: No dropout (always keep all)
-        
-        Start with p = 0.5 for hidden layers
-      
-      where_to_apply: |
-        Standard practice:
-        - After each hidden layer activation
-        - NOT on input layer (usually)
-        - NEVER on output layer
-        
-        Alternative: Only on largest layers (if memory constrained)
-    
-    advantages_disadvantages:
-      
-      advantages:
-        - "Effective regularization: reduces overfitting significantly"
-        - "Ensemble effect: implicitly trains many models"
-        - "Forces redundancy: robust representations"
-        - "Simple: just one hyperparameter (p)"
-        - "Works with any architecture"
-      
-      disadvantages:
-        - "Slows training: 2x iterations typically needed"
-        - "Adds noise: loss curves more jagged"
-        - "Requires tuning: p needs to be set"
-        - "Train/test discrepancy: must remember to set eval mode"
-  
-  # --------------------------------------------------------------------------
-  # Topic 4: Early Stopping
-  # --------------------------------------------------------------------------
-  
-  early_stopping:
-    
-    motivation:
-      
-      observation: |
-        Training continues → train loss ↓, val loss ↑
-        Overfitting increases with training time
-        
-        Solution: Stop training when validation loss stops improving
-      
-      simplest_regularization: "No hyperparameters to tune, just patience"
-    
-    algorithm:
-      
-      basic_early_stopping: |
-        1. Train for max_epochs
-        2. After each epoch, compute val_loss
-        3. If val_loss improved: save model
-        4. If val_loss hasn't improved for N epochs (patience): stop
-        5. Return best model (lowest val_loss)
-      
-      pseudocode: |
-        best_val_loss = infinity
-        patience_counter = 0
-        
-        for epoch in range(max_epochs):
-            train_one_epoch()
-            val_loss = evaluate_validation()
-            
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                save_checkpoint()
-                patience_counter = 0
-            else:
-                patience_counter += 1
-            
-            if patience_counter >= patience:
-                print(f"Early stopping at epoch {epoch}")
-                restore_best_checkpoint()
-                break
-    
-    implementation:
-      
-      early_stopping_class: |
-        class EarlyStopping:
-            """
-            Early stopping: halt training when validation loss stops improving.
-            
-            Parameters:
-            - patience: epochs to wait before stopping (typical: 5-20)
-            - min_delta: minimum improvement to reset patience (default: 0)
-            """
-            
-            def __init__(self, patience=10, min_delta=0.0):
-                self.patience = patience
-                self.min_delta = min_delta
-                self.best_loss = np.inf
-                self.counter = 0
-                self.best_model_state = None
-            
-            def __call__(self, val_loss, model):
-                """
-                Check if should stop training.
-                
-                Returns:
-                - should_stop: boolean
-                """
-                if val_loss < self.best_loss - self.min_delta:
-                    # Improvement
-                    self.best_loss = val_loss
-                    self.counter = 0
-                    self.best_model_state = self._save_model(model)
-                    return False
-                else:
-                    # No improvement
-                    self.counter += 1
-                    if self.counter >= self.patience:
-                        print(f"\nEarly stopping triggered (patience={self.patience})")
-                        self._restore_model(model)
-                        return True
-                    return False
-            
-            def _save_model(self, model):
-                """Save model parameters"""
-                import copy
-                return copy.deepcopy(model.get_parameters())
-            
-            def _restore_model(self, model):
-                """Restore best model"""
-                if self.best_model_state is not None:
-                    for name, param in self.best_model_state.items():
-                        model_params = model.get_parameters()
-                        model_params[name][:] = param
-      
-      training_with_early_stopping: |
-        def train_with_early_stopping(network, train_loader, val_loader,
-                                      optimizer, max_epochs=100, patience=10):
-            """
-            Training loop with early stopping.
-            """
-            early_stopping = EarlyStopping(patience=patience)
-            
-            history = {
-                'train_loss': [],
-                'val_loss': [],
-                'val_accuracy': []
-            }
-            
-            for epoch in range(max_epochs):
-                # Training epoch
-                epoch_losses = []
-                for X_batch, y_batch in train_loader:
-                    loss, _ = network.forward(X_batch, y_batch)
-                    network.backward()
-                    
-                    params = network.get_parameters()
-                    grads = network.get_gradients()
-                    optimizer.step(params, grads)
-                    
-                    epoch_losses.append(loss)
-                
-                train_loss = np.mean(epoch_losses)
-                
-                # Validation
-                val_loss, val_acc = evaluate(network, val_loader)
-                
-                history['train_loss'].append(train_loss)
-                history['val_loss'].append(val_loss)
-                history['val_accuracy'].append(val_acc)
-                
-                print(f"Epoch {epoch+1:3d}: train_loss={train_loss:.4f}, "
-                      f"val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
-                
-                # Check early stopping
-                if early_stopping(val_loss, network):
-                    break
-            
-            return history
+            def __repr__(self):
+                return f"ElasticNet(λ₁={self.l1.lambda_reg}, λ₂={self.l2.lambda_reg})"
     
     hyperparameter_tuning:
       
-      patience_selection: |
-        patience = 5: Aggressive (stops quickly)
-        patience = 10: Standard
-        patience = 20: Conservative (waits longer)
-        patience = 50: Very patient
+      tuning_strategy: |
+        Two hyperparameters to tune: (λ₁, λ₂)
         
-        Tradeoff:
-        - Small patience: Fast training, might stop too early
-        - Large patience: Slow training, better final model
+        Grid search:
+        λ₁ ∈ {0.001, 0.01, 0.1}
+        λ₂ ∈ {0.001, 0.01, 0.1}
+        → 9 combinations
         
-        Guideline: patience = 10-20 works well
-      
-      min_delta: |
-        min_delta = 0.0: Any improvement counts
-        min_delta = 0.001: Must improve by at least 0.001
+        Start with equal weights: λ₁ = λ₂ = 0.01
         
-        Use min_delta to ignore tiny fluctuations
-    
-    advantages_disadvantages:
-      
-      advantages:
-        - "Simple: no hyperparameters except patience"
-        - "Always works: guaranteed to reduce overfitting"
-        - "Saves time: stops when training not helping"
-        - "Automatic: no manual monitoring needed"
-      
-      disadvantages:
-        - "Validation set bias: optimizing for validation performance"
-        - "Patience required: need to decide when to give up"
-        - "May stop too early: local fluctuations vs true plateau"
-        - "Storage: need to save checkpoints"
+        If you want more sparsity: increase λ₁
+        If you want more stability: increase λ₂
   
   # --------------------------------------------------------------------------
-  # Topic 5: Data Augmentation
-  # --------------------------------------------------------------------------
-  
-  data_augmentation:
-    
-    motivation:
-      
-      fundamental_principle: "More data = better generalization"
-      
-      problem: "Collecting labeled data expensive (time, money, expertise)"
-      
-      solution: |
-        Generate new training samples from existing ones via transformations.
-        
-        Key: Transformations must preserve label
-        (e.g., rotated cat is still cat)
-    
-    image_augmentation:
-      
-      common_transformations:
-        geometric:
-          - "Rotation: rotate by random angle (-15° to +15°)"
-          - "Translation: shift left/right/up/down"
-          - "Scaling: zoom in/out"
-          - "Flipping: horizontal flip (vertical if appropriate)"
-          - "Cropping: random crop and resize"
-        
-        photometric:
-          - "Brightness: adjust luminance randomly"
-          - "Contrast: adjust contrast randomly"
-          - "Saturation: adjust color saturation"
-          - "Hue: shift hue slightly"
-          - "Noise: add Gaussian noise"
-      
-      implementation_example: |
-        class ImageAugmenter:
-            """
-            Simple image augmentation for MNIST/CIFAR.
-            """
-            
-            def __init__(self, rotation_range=15, translation_range=0.1,
-                        brightness_range=0.2):
-                self.rotation_range = rotation_range
-                self.translation_range = translation_range
-                self.brightness_range = brightness_range
-            
-            def augment(self, image):
-                """
-                Apply random augmentations to image.
-                
-                Parameters:
-                - image: (H, W) or (H, W, C) array
-                
-                Returns:
-                - augmented: transformed image
-                """
-                # Random rotation
-                angle = np.random.uniform(-self.rotation_range, 
-                                         self.rotation_range)
-                image = self._rotate(image, angle)
-                
-                # Random translation
-                shift_x = np.random.uniform(-self.translation_range,
-                                           self.translation_range) * image.shape[1]
-                shift_y = np.random.uniform(-self.translation_range,
-                                           self.translation_range) * image.shape[0]
-                image = self._translate(image, shift_x, shift_y)
-                
-                # Random brightness
-                brightness_delta = np.random.uniform(-self.brightness_range,
-                                                    self.brightness_range)
-                image = np.clip(image + brightness_delta, 0, 1)
-                
-                return image
-            
-            def _rotate(self, image, angle):
-                """Rotate image by angle degrees"""
-                from scipy.ndimage import rotate
-                return rotate(image, angle, reshape=False, mode='nearest')
-            
-            def _translate(self, image, shift_x, shift_y):
-                """Translate image by (shift_x, shift_y)"""
-                from scipy.ndimage import shift
-                return shift(image, [shift_y, shift_x, 0] if len(image.shape) == 3 
-                           else [shift_y, shift_x], mode='nearest')
-      
-      training_integration: |
-        # Create augmenter
-        augmenter = ImageAugmenter(rotation_range=15, translation_range=0.1)
-        
-        # Training loop with augmentation
-        for epoch in range(epochs):
-            for X_batch, y_batch in train_loader:
-                # Augment batch
-                X_augmented = np.array([augmenter.augment(img) 
-                                       for img in X_batch.T]).T
-                
-                # Train on augmented data
-                loss = network.train_step(X_augmented, y_batch)
-    
-    text_augmentation:
-      
-      techniques:
-        - "Synonym replacement: replace words with synonyms"
-        - "Back translation: translate to another language and back"
-        - "Random insertion: insert random words"
-        - "Random swap: swap positions of words"
-        - "Random deletion: delete random words"
-      
-      example: |
-        Original: "The movie was excellent"
-        Synonym: "The film was outstanding"
-        Insertion: "The movie was really excellent"
-        Swap: "The excellent was movie"
-        Deletion: "The movie excellent"
-    
-    effectiveness:
-      
-      empirical_impact: |
-        Without augmentation: 92% test accuracy
-        With augmentation: 96% test accuracy
-        
-        Typical improvement: 2-5% accuracy
-      
-      when_most_effective:
-        - "Small datasets (<10K samples)"
-        - "High capacity models (many parameters)"
-        - "Domain with natural invariances (images, audio)"
-  
-  # --------------------------------------------------------------------------
-  # Topic 6: Combining Regularization Techniques
-  # --------------------------------------------------------------------------
-  
-  combining_techniques:
-    
-    common_combinations:
-      
-      standard_recipe: |
-        L2 regularization + Dropout + Early stopping
-        
-        Rationale:
-        - L2: prevents large weights
-        - Dropout: prevents co-adaptation
-        - Early stopping: prevents overtraining
-        
-        Works for 80% of problems
-      
-      aggressive_regularization: |
-        L2 + L1 + Dropout + Data augmentation + Early stopping
-        
-        Use when:
-        - Very small dataset (<1K samples)
-        - Very high capacity model
-        - Severe overfitting observed
-      
-      minimal_regularization: |
-        Just early stopping
-        
-        Use when:
-        - Large dataset (>100K samples)
-        - Model barely fits training data
-        - Underfitting risk
-    
-    hyperparameter_search:
-      
-      grid_search_strategy: |
-        1. Establish baseline (no regularization)
-        2. Add L2, tune λ: [0.0001, 0.001, 0.01, 0.1]
-        3. Add dropout, tune p: [0.5, 0.6, 0.7, 0.8]
-        4. Add early stopping with patience=10
-        5. If still overfitting, add data augmentation
-      
-      evaluation_protocol: |
-        Critical: Use separate validation and test sets
-        
-        - Train set: train model
-        - Validation set: tune regularization hyperparameters
-        - Test set: final evaluation (touch ONLY ONCE)
-        
-        Never optimize for test set performance!
-  
-  # --------------------------------------------------------------------------
-  # Topic 7: Security Implications
+  # Topic 6: Security Implications
   # --------------------------------------------------------------------------
   
   security_implications:
     
-    regularization_and_adversarial_robustness:
-      
-      l2_improves_robustness:
-        observation: |
-          L2 regularization constrains weight magnitudes.
-          Smaller weights → less sensitive to input perturbations.
-          
-          Adversarial perturbations: δ = ε · sign(∇_x L)
-          Smaller weights → smaller ∇_x L → less effective attack
-        
-        empirical: |
-          No regularization: adversarial accuracy 5%
-          L2 (λ=0.01): adversarial accuracy 15%
-          L2 (λ=0.1): adversarial accuracy 25%
-          
-          (On MNIST with FGSM attack)
-    
-    dropout_and_backdoors:
-      
-      backdoor_persistence:
-        observation: |
-          Backdoor: specific neurons activated by trigger
-          Dropout: randomly disables neurons
-          
-          If backdoor neurons dropped during training:
-          - Backdoor signal lost
-          - Network learns to not rely on backdoor
-          
-          Result: Dropout can weaken backdoors
-        
-        attack_countermeasure: |
-          Attacker can make backdoor more robust:
-          - Use many redundant neurons for backdoor
-          - Stronger backdoor signal
-          - Poison more samples
-    
-    data_augmentation_dilutes_poisoning:
-      
-      poisoning_impact:
-        observation: |
-          Poisoned samples: 1% of training data (100 out of 10K)
-          
-          Without augmentation: 100 poisoned, 9900 clean
-          With augmentation (10x): 100 poisoned, 99000 clean (augmented)
-          
-          Poisoning rate: 1% → 0.1%
-          Backdoor effectiveness reduced 10x!
-        
-        defense_strategy: "Aggressive data augmentation dilutes poisoned samples"
-    
-    early_stopping_preserves_backdoors:
+    l2_improves_adversarial_robustness:
       
       observation: |
-        Backdoor learned early in training (high loss initially).
-        Early stopping prevents further training.
-        Result: Backdoor preserved, not overwritten.
+        L2 regularization makes models more robust to adversarial examples.
+        
+        Intuition:
+        - L2 constrains weight magnitudes
+        - Smaller weights → smaller gradients
+        - Adversarial perturbations depend on ∇_x L (input gradient)
+        - Smaller weights → smaller input gradients → less effective attacks
       
-      attack_strategy: "Poison early epochs, hope defender uses early stopping"
+      mathematical_connection: |
+        Adversarial perturbation (FGSM):
+        δ = ε · sign(∇_x L(x, y; W))
+        
+        Gradient magnitude depends on weight magnitudes:
+        ||∇_x L|| ∝ ||W|| (roughly)
+        
+        L2 regularization: ||W|| is constrained
+        → ||∇_x L|| is smaller
+        → Adversarial perturbations less effective
       
-      defense_consideration: "Early stopping may not be best for security"
+      empirical_evidence: |
+        Experiment: MNIST + FGSM attack (ε=0.1)
+        
+        No regularization (λ=0):
+        - Clean accuracy: 98.5%
+        - Adversarial accuracy: 12.3%
+        
+        L2 regularization (λ=0.01):
+        - Clean accuracy: 98.2%
+        - Adversarial accuracy: 35.7%
+        
+        L2 regularization (λ=0.1):
+        - Clean accuracy: 97.1%
+        - Adversarial accuracy: 52.4%
+        
+        Trade-off: Stronger L2 → better robustness, slightly lower clean accuracy
+      
+      not_a_complete_defense: |
+        Important: L2 regularization IMPROVES robustness but doesn't 
+        GUARANTEE security.
+        
+        Adversarial training (Chapter 10) is still needed for true robustness.
+        L2 is a helpful first layer of defense.
+    
+    over_regularization_can_harm_security:
+      
+      observation: |
+        Extreme regularization (λ → ∞) makes models TOO simple.
+        Simple models can be easier to fool with crafted inputs.
+      
+      example: |
+        λ = 0: Complex decision boundary, hard to fool systematically
+        λ = 100: Linear decision boundary, easy to find adversarial direction
+        
+        Balance needed: Regularize to prevent overfitting, but not so much
+        that the model becomes trivially simple.
   
   # --------------------------------------------------------------------------
   # Key Takeaways
@@ -1053,32 +944,32 @@ section_02_10_regularization_techniques:
   key_takeaways:
     
     critical_concepts:
-      - "Overfitting = memorizing noise: train loss low, val loss high (large gap)"
-      - "L2 penalizes large weights: L_total = L_data + λ/2·Σ(W²), prefers distributed representations"
-      - "Dropout prevents co-adaptation: randomly drop neurons, forces redundancy, ensemble effect"
-      - "Early stopping simplest regularization: stop when val loss stops improving, no hyperparameters"
-      - "Data augmentation increases data: transform samples preserving labels, 2-5% improvement typical"
-      - "Combine techniques: L2 + dropout + early stopping works 80% of time"
+      - "Overfitting = train-val gap >0.15: model memorizing noise, not learning patterns"
+      - "L2 penalty: (λ/2)·Σ(W²), gradient: λ·W, prefers many small weights (distributed)"
+      - "L1 penalty: λ·Σ|W|, gradient: λ·sign(W), induces sparsity (many exact zeros)"
+      - "Weight decay ≠ L2 for adaptive optimizers: AdamW decouples decay from gradient"
+      - "Elastic Net = L1 + L2: combines sparsity and stability, two hyperparameters"
+      - "L2 improves adversarial robustness: smaller weights → smaller gradients → harder to attack"
     
     actionable_steps:
-      - "Always plot learning curves: train vs val loss/accuracy, diagnose overfitting early"
-      - "Start with L2=0.01: most common regularization, tune if needed (0.001-0.1 range)"
-      - "Add dropout=0.5 if still overfitting: after each hidden layer, NOT on output"
-      - "Use early stopping patience=10-20: saves time, prevents overtraining automatically"
-      - "Augment data if <10K samples: rotation, translation, brightness for images"
-      - "Never tune on test set: use train/val for tuning, test ONLY for final evaluation"
+      - "Always plot learning curves first: diagnose overfitting before adding regularization"
+      - "Start with L2 λ=0.01: most common, works 80% of time, tune from there"
+      - "Use AdamW (not Adam+L2) for transformers: better generalization, modern best practice"
+      - "Only use L1 for feature selection: when you have >1000 features and want sparsity"
+      - "Tune λ on validation set: grid search [0.0001, 0.001, 0.01, 0.1]"
+      - "Don't over-regularize: if training loss not decreasing, λ too large"
     
     security_principles:
-      - "L2 regularization improves robustness: smaller weights → less sensitive to adversarial perturbations"
-      - "Dropout can weaken backdoors: randomly dropping backdoor neurons prevents reliable triggering"
-      - "Data augmentation dilutes poisoning: 10x augmentation → 10x reduction in poisoning impact"
-      - "Early stopping preserves backdoors: stops before backdoor overwritten, consider for security"
+      - "L2 regularization = first line of defense: constrains weights, reduces gradient magnitude"
+      - "Stronger L2 → better adversarial robustness: empirically 2-4x improvement in adversarial accuracy"
+      - "But L2 alone insufficient: need adversarial training for true robustness (Chapter 10)"
+      - "Balance regularization strength: too weak = overfitting, too strong = oversimplification"
     
-    debugging_tips:
-      - "Overfitting (train-val gap): increase regularization (L2, dropout) or get more data"
-      - "Underfitting (both losses high): decrease regularization, increase model capacity"
-      - "Forgot to set eval mode: dropout active at test time → poor performance, random predictions"
-      - "Regularization too strong: training loss not decreasing, decrease λ or dropout rate"
-      - "Data augmentation hurting: transformations not label-preserving, verify augmented samples look reasonable"
+    common_mistakes:
+      - "Regularizing biases: only regularize W matrices, NOT b vectors"
+      - "Using L2 with Adam and expecting weight decay: use AdamW instead"
+      - "Tuning λ on test set: always use validation set, test set touched ONCE"
+      - "Forgetting to add regularization to loss: penalty must be in total loss for gradient"
+      - "Assuming L1=sparsity always: only true after convergence, early training not sparse"
 
 ---
