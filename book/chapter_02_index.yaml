@@ -643,35 +643,6 @@ chapter_02_index:
         - "Can you debug training failures?"
         - "Can you tune hyperparameters?"
     
-    section_25:
-      number: "25"
-      title: "Chapter Summary"
-      filename: "section_02_25_chapter_summary.yaml"
-      estimated_pages: 6
-      
-      topics_covered:
-        - "Complete chapter review: all 24 sections recap"
-        - "Neural network foundations to production deployment"
-        - "Security deep dive: adversarial, backdoors, privacy"
-        - "Advanced topics: Transformers, self-supervised learning"
-        - "Integration with Chapter 1 (classical ML)"
-        - "What you can build: security detection systems"
-        - "Quick reference guides and comprehensive checklists"
-      
-      key_deliverables:
-        - "Deep learning mastery summary and integration"
-        - "Security testing checklists (pre/during/post deployment)"
-        - "Architecture selection guide (ResNet, MobileNet, Transformers)"
-        - "Training hyperparameters reference (proven defaults)"
-        - "Debugging guide for common issues"
-        - "Comparison: when to use classical ML vs deep learning"
-      
-      purpose: |
-        Comprehensive integration of deep learning fundamentals, CNNs,
-        production deployment, and security. Bridges classical ML (Chapter 1)
-        with deep learning (Chapter 2) and previews detection engineering
-        (Chapter 3). Serves as complete reference for deep learning security.
-
       next_chapter_preview: |
         Chapter 3: Large Language Model Architecture
         - Transformers and attention mechanisms
