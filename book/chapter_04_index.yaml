@@ -1,0 +1,778 @@
+# chapter_04_index.yaml
+
+---
+chapter_info:
+  number: 4
+  title: "Production LLM Systems and Advanced Techniques"
+  book: "AI Security Mastery: From ML Fundamentals to Production Detection Systems"
+  author: "Raghav Dinesh"
+  github: "https://github.com/raghavpoonia/ai-security-mastery"
+  license: "MIT"
+  created: "2026-01-25"
+  version: "1.0"
+  
+  description: |
+    Chapter 4 transitions from understanding LLM architectures to building production-grade
+    LLM systems. This chapter covers advanced techniques like Retrieval-Augmented Generation
+    (RAG), LLM agents with tool use, fine-tuning strategies, and comprehensive production
+    deployment patterns. Every concept is taught with security-first principles, showing
+    both vulnerable implementations and hardened production versions.
+    
+    The chapter is structured in four parts: (1) Advanced LLM Techniques including RAG,
+    few-shot learning, and fine-tuning; (2) LLM Agents and Tool Use covering function
+    calling, agent architectures, and agentic workflows; (3) Production Deployment
+    including serving, scaling, monitoring, and security hardening; and (4) Advanced
+    Security covering sophisticated attack techniques, defense-in-depth strategies,
+    and red-teaming methodologies.
+    
+    By the end of this chapter, you'll be able to build, deploy, and secure production
+    LLM systems from scratch, understanding every attack surface and defense mechanism.
+  
+  learning_outcomes:
+    - "Build RAG systems from scratch using vector databases and embedding-based retrieval"
+    - "Implement LLM agents with function calling, tool use, and multi-agent coordination"
+    - "Apply fine-tuning techniques (LoRA, QLoRA) and understand when to fine-tune vs prompt engineer"
+    - "Deploy and scale LLMs in production with optimization, monitoring, and cost management"
+    - "Secure production LLM systems against advanced attacks (RAG poisoning, agent exploitation)"
+    - "Implement defense-in-depth strategies for LLM applications at scale"
+    - "Build automated red-teaming and security testing pipelines"
+    - "Design zero-trust architectures for LLM-powered applications"
+  
+  prerequisites:
+    knowledge:
+      - "Chapter 3: Complete transformer architecture (encoder, decoder, attention mechanisms)"
+      - "Chapter 3: Modern LLMs (BERT, GPT, T5) and their training objectives"
+      - "Chapter 3: LLM security fundamentals (prompt injection, jailbreaking, data extraction)"
+      - "Chapter 2: Deep learning fundamentals (backpropagation, optimization, regularization)"
+      - "Chapter 1: Python, NumPy, and software engineering practices"
+    
+    skills:
+      - "Implementing neural networks from scratch with NumPy"
+      - "Understanding attention mechanisms and transformer computations"
+      - "Identifying and defending against basic LLM security vulnerabilities"
+      - "Working with embeddings and vector representations"
+  
+  chapter_structure:
+    part_1:
+      title: "Advanced LLM Techniques"
+      sections: [1, 2, 3, 4, 5, 6]
+      focus: "RAG, few-shot learning, fine-tuning, and advanced prompt engineering"
+    
+    part_2:
+      title: "LLM Agents and Tool Use"
+      sections: [7, 8, 9, 10, 11]
+      focus: "Function calling, agent architectures, workflows, and memory management"
+    
+    part_3:
+      title: "Production Deployment"
+      sections: [12, 13, 14, 15, 16, 17]
+      focus: "Serving, scaling, monitoring, optimization, and operational security"
+    
+    part_4:
+      title: "Advanced Security"
+      sections: [18, 19, 20, 21]
+      focus: "Advanced attacks, defense-in-depth, red-teaming, and comprehensive security"
+
+sections:
+  - section_number: 1
+    title: "Vector Embeddings and Semantic Search Foundations"
+    filename: "section_04_01_vector_embeddings_semantic_search.yaml"
+    estimated_pages: 7
+    part: 1
+    
+    topics:
+      - "Dense vector representations and embedding spaces"
+      - "Similarity metrics: cosine, dot product, euclidean distance"
+      - "Semantic search architecture and nearest neighbor algorithms"
+      - "Building embedding-based search from scratch with NumPy"
+    
+    key_concepts:
+      - "Embedding dimensionality and its impact on semantic capture"
+      - "Similarity metrics trade-offs (speed, accuracy, memory)"
+      - "Approximate nearest neighbors vs exact search"
+      - "Embedding model selection and domain adaptation"
+    
+    deliverables:
+      - "NumPy implementation of cosine similarity search"
+      - "K-nearest neighbors (KNN) semantic search engine"
+      - "Embedding space visualization and analysis tools"
+      - "Performance benchmarking suite for similarity metrics"
+    
+    security_preview: |
+      Embedding spaces can leak information through similarity queries. Attackers
+      can reconstruct training data, perform membership inference, or poison the
+      embedding space. This section covers embedding security, query sanitization,
+      and defense against nearest-neighbor attacks.
+
+  - section_number: 2
+    title: "Vector Databases and Efficient Retrieval Systems"
+    filename: "section_04_02_vector_databases_efficient_retrieval.yaml"
+    estimated_pages: 8
+    part: 1
+    
+    topics:
+      - "Vector database architectures and indexing strategies"
+      - "FAISS: Facebook AI Similarity Search from fundamentals"
+      - "Approximate nearest neighbor algorithms (HNSW, IVF)"
+      - "Production vector database deployment (Pinecone, Weaviate, Milvus)"
+    
+    key_concepts:
+      - "Index types: flat, IVF, HNSW, PQ trade-offs"
+      - "Quantization for memory efficiency"
+      - "Sharding and distributed vector search"
+      - "Index persistence and incremental updates"
+    
+    deliverables:
+      - "FAISS implementation from scratch (flat index)"
+      - "HNSW (Hierarchical Navigable Small World) graph implementation"
+      - "Production FAISS deployment with GPU acceleration"
+      - "Vector database benchmarking framework"
+    
+    security_preview: |
+      Vector databases introduce new attack surfaces: index poisoning, query timing
+      attacks, and unauthorized data access. This section implements secure vector
+      storage, query validation, access control, and defense against poisoning attacks.
+
+  - section_number: 3
+    title: "Document Processing and Intelligent Chunking Strategies"
+    filename: "section_04_03_document_processing_chunking.yaml"
+    estimated_pages: 7
+    part: 1
+    
+    topics:
+      - "Document loaders and text extraction pipelines"
+      - "Chunking strategies: fixed-size, semantic, recursive"
+      - "Chunk overlap and context preservation techniques"
+      - "Metadata extraction and enrichment for retrieval"
+    
+    key_concepts:
+      - "Chunk size vs retrieval accuracy trade-offs"
+      - "Semantic chunking using sentence embeddings"
+      - "Context window management for downstream LLMs"
+      - "Multilingual document processing considerations"
+    
+    deliverables:
+      - "Multi-format document loader (PDF, DOCX, HTML, Markdown)"
+      - "Semantic chunking implementation using embeddings"
+      - "Recursive chunking with parent-child relationships"
+      - "Chunk quality evaluation framework"
+    
+    security_preview: |
+      Document processing pipelines are vulnerable to malicious inputs: polyglot files,
+      XXE attacks, path traversal, and content injection. This section covers secure
+      file handling, input validation, sandboxing, and defense against document-based
+      attacks in RAG systems.
+
+  - section_number: 4
+    title: "Retrieval-Augmented Generation (RAG) Architecture"
+    filename: "section_04_04_rag_architecture.yaml"
+    estimated_pages: 8
+    part: 1
+    
+    topics:
+      - "RAG pipeline architecture: retrieval, augmentation, generation"
+      - "Query transformation and expansion techniques"
+      - "Re-ranking strategies for retrieval quality"
+      - "Context compression and relevance filtering"
+    
+    key_concepts:
+      - "Dense retrieval vs sparse retrieval vs hybrid"
+      - "Query understanding and intent classification"
+      - "Top-k selection and diversity in retrieved documents"
+      - "Prompt construction from retrieved context"
+    
+    deliverables:
+      - "End-to-end RAG system from scratch (NumPy + Transformers)"
+      - "Hybrid retrieval implementation (BM25 + dense embeddings)"
+      - "Re-ranking model using cross-encoders"
+      - "RAG evaluation framework (faithfulness, relevance)"
+    
+    security_preview: |
+      RAG systems are vulnerable to retrieval manipulation, context injection, and
+      answer poisoning. Attackers can manipulate rankings, inject malicious documents,
+      or exploit the generation phase. This section implements secure RAG with input
+      validation, retrieval filtering, and output sanitization.
+
+  - section_number: 5
+    title: "Advanced Prompt Engineering and In-Context Learning"
+    filename: "section_04_05_advanced_prompting_in_context_learning.yaml"
+    estimated_pages: 7
+    part: 1
+    
+    topics:
+      - "Few-shot learning and demonstration selection strategies"
+      - "Chain-of-thought (CoT) prompting and reasoning elicitation"
+      - "Self-consistency and majority voting techniques"
+      - "Prompt optimization and automatic prompt engineering"
+    
+    key_concepts:
+      - "Demonstration ordering and its impact on performance"
+      - "Reasoning patterns: zero-shot CoT, few-shot CoT, ReAct"
+      - "Prompt compression and context length optimization"
+      - "Dynamic example selection based on query similarity"
+    
+    deliverables:
+      - "Few-shot prompt constructor with example selection"
+      - "Chain-of-thought prompt generator and parser"
+      - "Self-consistency ensemble implementation"
+      - "Automatic prompt optimizer using feedback"
+    
+    security_preview: |
+      Advanced prompting techniques introduce new attack vectors: demonstration
+      poisoning, reasoning manipulation, and consistency attacks. This section covers
+      secure example selection, CoT validation, and defense against prompt optimization
+      exploits.
+
+  - section_number: 6
+    title: "Fine-Tuning Strategies: LoRA, QLoRA, and Efficient Adaptation"
+    filename: "section_04_06_fine_tuning_lora_qlora.yaml"
+    estimated_pages: 8
+    part: 1
+    
+    topics:
+      - "Full fine-tuning vs parameter-efficient fine-tuning (PEFT)"
+      - "LoRA (Low-Rank Adaptation): theory and implementation"
+      - "QLoRA: Quantization + LoRA for memory efficiency"
+      - "When to fine-tune vs when to use prompt engineering"
+    
+    key_concepts:
+      - "Low-rank decomposition for efficient adaptation"
+      - "LoRA hyperparameters: rank, alpha, dropout"
+      - "4-bit quantization with NormalFloat4 (NF4)"
+      - "Fine-tuning decision framework and cost analysis"
+    
+    deliverables:
+      - "LoRA implementation from scratch with NumPy"
+      - "Full LoRA fine-tuning pipeline with Hugging Face"
+      - "QLoRA implementation with 4-bit quantization"
+      - "Fine-tuning vs prompting decision framework"
+    
+    security_preview: |
+      Fine-tuning introduces backdoor risks, data poisoning, and model stealing
+      vulnerabilities. This section covers secure fine-tuning practices, training
+      data validation, backdoor detection, and defense against model extraction
+      attacks during fine-tuning.
+
+  - section_number: 7
+    title: "Function Calling and Structured Output Generation"
+    filename: "section_04_07_function_calling_structured_outputs.yaml"
+    estimated_pages: 7
+    part: 2
+    
+    topics:
+      - "Function calling API design and schema definition"
+      - "Structured output generation with JSON mode and grammar constraints"
+      - "Parameter extraction and validation from LLM outputs"
+      - "Error handling and fallback strategies for invalid calls"
+    
+    key_concepts:
+      - "JSON schema for function definitions"
+      - "Constrained decoding for guaranteed valid outputs"
+      - "Multi-function selection and routing logic"
+      - "Function result integration back into conversation"
+    
+    deliverables:
+      - "Function calling framework from scratch"
+      - "JSON schema validator and output parser"
+      - "Constrained decoding implementation for structured outputs"
+      - "Multi-function orchestration system"
+    
+    security_preview: |
+      Function calling is a major attack surface: injection via function arguments,
+      unauthorized function execution, and privilege escalation. This section implements
+      function whitelisting, parameter sanitization, execution sandboxing, and defense
+      against function calling exploits.
+
+  - section_number: 8
+    title: "Tool Use and External API Integration"
+    filename: "section_04_08_tool_use_external_apis.yaml"
+    estimated_pages: 7
+    part: 2
+    
+    topics:
+      - "Tool abstraction and unified interface design"
+      - "API integration patterns: REST, GraphQL, databases"
+      - "Tool selection logic and confidence scoring"
+      - "Result parsing and error propagation"
+    
+    key_concepts:
+      - "Tool registry and dynamic tool discovery"
+      - "Authentication and credential management for tools"
+      - "Rate limiting and quota management across tools"
+      - "Tool chaining and sequential execution"
+    
+    deliverables:
+      - "Universal tool interface implementation"
+      - "Tool registry with capability matching"
+      - "API wrapper framework for common services"
+      - "Tool execution monitor with rate limiting"
+    
+    security_preview: |
+      External tool integration expands the attack surface dramatically. This section
+      covers API key management, least-privilege access, tool sandboxing, request
+      validation, and defense against SSRF and command injection through tool use.
+
+  - section_number: 9
+    title: "ReAct Agents: Reasoning and Acting in Interleaved Steps"
+    filename: "section_04_09_react_agents.yaml"
+    estimated_pages: 8
+    part: 2
+    
+    topics:
+      - "ReAct framework: Thought, Action, Observation loop"
+      - "Reasoning trace generation and action selection"
+      - "Observation processing and state updates"
+      - "Multi-step problem solving with ReAct"
+    
+    key_concepts:
+      - "Interleaving reasoning and acting for better decisions"
+      - "Action space design and action formatting"
+      - "Termination conditions and success criteria"
+      - "Reflection and self-correction in ReAct loops"
+    
+    deliverables:
+      - "ReAct agent implementation from scratch"
+      - "Multi-step reasoning engine with trace logging"
+      - "Action parser and executor framework"
+      - "ReAct benchmark suite for complex tasks"
+    
+    security_preview: |
+      ReAct agents can be manipulated through observation injection, reasoning
+      hijacking, and action manipulation. This section implements secure ReAct
+      loops with observation validation, reasoning verification, action approval,
+      and defense against multi-step agent attacks.
+
+  - section_number: 10
+    title: "Advanced Agent Architectures: Plan-and-Execute and Multi-Agent Systems"
+    filename: "section_04_10_advanced_agent_architectures.yaml"
+    estimated_pages: 8
+    part: 2
+    
+    topics:
+      - "Plan-and-Execute agents: planning, execution, verification"
+      - "Multi-agent systems and agent communication protocols"
+      - "Agent specialization and role assignment"
+      - "Collaborative problem solving with multiple agents"
+    
+    key_concepts:
+      - "Hierarchical planning and task decomposition"
+      - "Agent coordination mechanisms (centralized vs distributed)"
+      - "Conflict resolution in multi-agent systems"
+      - "Agent memory and shared knowledge bases"
+    
+    deliverables:
+      - "Plan-and-Execute agent with hierarchical planning"
+      - "Multi-agent coordination framework"
+      - "Agent communication protocol implementation"
+      - "Collaborative multi-agent benchmark tasks"
+    
+    security_preview: |
+      Multi-agent systems amplify security risks through agent impersonation,
+      communication interception, and coordinated attacks. This section covers
+      agent authentication, encrypted communication, trust management, and defense
+      against multi-agent exploitation.
+
+  - section_number: 11
+    title: "Agent Memory, State Management, and Human-in-the-Loop Patterns"
+    filename: "section_04_11_agent_memory_state_hitl.yaml"
+    estimated_pages: 7
+    part: 2
+    
+    topics:
+      - "Agent memory architectures: short-term, long-term, episodic"
+      - "State persistence and recovery mechanisms"
+      - "Human-in-the-loop workflows and approval gates"
+      - "Conversation history management and context pruning"
+    
+    key_concepts:
+      - "Memory consolidation and retrieval strategies"
+      - "Stateful vs stateless agent design"
+      - "Checkpoint and rollback mechanisms"
+      - "Human approval points and override capabilities"
+    
+    deliverables:
+      - "Multi-tier agent memory system implementation"
+      - "State persistence framework with checkpointing"
+      - "Human-in-the-loop orchestration system"
+      - "Conversation manager with context window optimization"
+    
+    security_preview: |
+      Agent memory systems can leak sensitive information, be poisoned with false
+      memories, or bypass human oversight. This section implements secure memory
+      storage, memory access control, approval gate enforcement, and defense against
+      memory manipulation attacks.
+
+  - section_number: 12
+    title: "Model Serving and Inference Optimization"
+    filename: "section_04_12_model_serving_inference_optimization.yaml"
+    estimated_pages: 8
+    part: 3
+    
+    topics:
+      - "Inference server architecture and deployment patterns"
+      - "Batching strategies: dynamic batching and continuous batching"
+      - "KV-cache optimization and memory management"
+      - "Request queuing and load balancing"
+    
+    key_concepts:
+      - "Throughput vs latency trade-offs in serving"
+      - "GPU utilization optimization techniques"
+      - "PagedAttention and efficient memory allocation"
+      - "Speculative decoding for faster generation"
+    
+    deliverables:
+      - "FastAPI-based inference server from scratch"
+      - "Dynamic batching implementation with vLLM"
+      - "KV-cache management system"
+      - "Load balancer for multi-GPU deployment"
+    
+    security_preview: |
+      Inference servers face DoS attacks, model extraction, and prompt injection
+      at scale. This section implements request validation, rate limiting, input
+      sanitization, model watermarking, and defense against inference-time attacks.
+
+  - section_number: 13
+    title: "Quantization and Model Compression for Deployment"
+    filename: "section_04_13_quantization_model_compression.yaml"
+    estimated_pages: 7
+    part: 3
+    
+    topics:
+      - "Post-training quantization: INT8, INT4, and FP16"
+      - "Quantization-aware training and calibration"
+      - "Model pruning and knowledge distillation"
+      - "Trade-offs: accuracy, speed, memory, cost"
+    
+    key_concepts:
+      - "Symmetric vs asymmetric quantization"
+      - "Per-tensor vs per-channel quantization"
+      - "GPTQ and AWQ quantization algorithms"
+      - "Mixed-precision deployment strategies"
+    
+    deliverables:
+      - "INT8 quantization implementation from scratch"
+      - "GPTQ quantization for LLMs"
+      - "Knowledge distillation pipeline (teacher-student)"
+      - "Quantization impact analysis framework"
+    
+    security_preview: |
+      Quantization can introduce new vulnerabilities: bit-flip attacks, adversarial
+      quantization exploitation, and accuracy degradation attacks. This section covers
+      secure quantization practices, quantization verification, and defense against
+      quantization-based attacks.
+
+  - section_number: 14
+    title: "Horizontal Scaling, Load Balancing, and Distributed Deployment"
+    filename: "section_04_14_scaling_load_balancing_distributed.yaml"
+    estimated_pages: 7
+    part: 3
+    
+    topics:
+      - "Horizontal scaling strategies for LLM workloads"
+      - "Load balancing algorithms and health checks"
+      - "Distributed serving with model parallelism and pipeline parallelism"
+      - "Auto-scaling policies and resource optimization"
+    
+    key_concepts:
+      - "Stateless vs stateful serving considerations"
+      - "Sticky sessions for conversation continuity"
+      - "Model sharding across multiple GPUs/nodes"
+      - "Cost-performance optimization at scale"
+    
+    deliverables:
+      - "Nginx/HAProxy load balancer configuration for LLMs"
+      - "Kubernetes deployment manifests with HPA"
+      - "Distributed serving with Ray Serve"
+      - "Auto-scaling policy based on queue depth and latency"
+    
+    security_preview: |
+      Distributed systems introduce new attack vectors: node compromise, network
+      interception, and coordinated attacks. This section implements secure service
+      mesh, encrypted inter-node communication, distributed authentication, and
+      defense against distributed system attacks.
+
+  - section_number: 15
+    title: "Caching Strategies and Cost Optimization"
+    filename: "section_04_15_caching_cost_optimization.yaml"
+    estimated_pages: 7
+    part: 3
+    
+    topics:
+      - "Multi-tier caching: prompt cache, KV-cache, response cache"
+      - "Cache invalidation strategies and freshness management"
+      - "Cost analysis: compute, memory, storage, network"
+      - "Optimization techniques: request deduplication, prompt compression"
+    
+    key_concepts:
+      - "Semantic caching using embedding similarity"
+      - "Cache hit rate optimization and monitoring"
+      - "Cost per token analysis and budgeting"
+      - "Intelligent routing to cached vs fresh responses"
+    
+    deliverables:
+      - "Redis-based semantic cache implementation"
+      - "Prompt cache with similarity matching"
+      - "Cost tracking and budgeting system"
+      - "Cache analytics and optimization dashboard"
+    
+    security_preview: |
+      Caching can leak sensitive information through cache timing attacks, cache
+      poisoning, and unauthorized cache access. This section implements secure
+      caching with encryption, access control, cache partitioning, and defense
+      against cache-based attacks.
+
+  - section_number: 16
+    title: "Monitoring, Observability, and Quality Assurance"
+    filename: "section_04_16_monitoring_observability_quality.yaml"
+    estimated_pages: 8
+    part: 3
+    
+    topics:
+      - "Comprehensive logging: requests, responses, errors, traces"
+      - "Performance metrics: latency, throughput, token usage, costs"
+      - "Quality monitoring: hallucination detection, factuality checking"
+      - "Drift detection and model performance degradation"
+    
+    key_concepts:
+      - "Distributed tracing for multi-component LLM systems"
+      - "Real-time anomaly detection in LLM outputs"
+      - "A/B testing and gradual rollout strategies"
+      - "SLO/SLA definition and monitoring for LLMs"
+    
+    deliverables:
+      - "OpenTelemetry instrumentation for LLM pipelines"
+      - "Prometheus + Grafana monitoring stack"
+      - "Hallucination detection system using consistency checks"
+      - "Model drift detection using output distribution analysis"
+    
+    security_preview: |
+      Monitoring systems can expose sensitive data through logs, metrics, and traces.
+      This section implements PII redaction in logs, secure metric collection, audit
+      trail generation, and defense against information leakage through observability.
+
+  - section_number: 17
+    title: "API Security, Secrets Management, and Compliance"
+    filename: "section_04_17_api_security_secrets_compliance.yaml"
+    estimated_pages: 8
+    part: 3
+    
+    topics:
+      - "API authentication and authorization (OAuth2, API keys, JWT)"
+      - "Secrets management: environment variables, vaults, rotation"
+      - "Compliance requirements: GDPR, SOC2, data residency"
+      - "Audit logging and security event monitoring"
+    
+    key_concepts:
+      - "Zero-trust API design principles"
+      - "Least-privilege access control for LLM APIs"
+      - "Secret rotation strategies and credential lifecycle"
+      - "Data classification and handling requirements"
+    
+    deliverables:
+      - "OAuth2 + JWT authentication system for LLM APIs"
+      - "HashiCorp Vault integration for secrets management"
+      - "GDPR-compliant request/response handling"
+      - "Security audit log processor and alerting system"
+    
+    security_preview: |
+      Production API security is critical: this section covers comprehensive API
+      hardening including rate limiting, DDoS protection, credential management,
+      compliance automation, and defense against API-specific attacks in LLM systems.
+
+  - section_number: 18
+    title: "Advanced Attack Techniques: Multi-Stage and Indirect Injection"
+    filename: "section_04_18_advanced_attacks.yaml"
+    estimated_pages: 7
+    part: 4
+    
+    topics:
+      - "Multi-stage prompt injection attacks and payload staging"
+      - "Indirect prompt injection via RAG documents and tools"
+      - "Agent jailbreaking through tool manipulation"
+      - "Supply chain attacks: RAG poisoning and backdoored fine-tuning"
+    
+    key_concepts:
+      - "Attack chaining and persistence mechanisms"
+      - "Cross-context injection in multi-turn conversations"
+      - "Retrieval manipulation for targeted injection"
+      - "Model backdoors in fine-tuned adapters"
+    
+    deliverables:
+      - "Multi-stage injection attack framework (ethical research)"
+      - "Indirect injection detection system"
+      - "RAG poisoning attack simulator"
+      - "Backdoor detection in fine-tuned models"
+    
+    security_preview: |
+      This section provides ethical, educational demonstrations of advanced attacks
+      to understand attacker techniques. All implementations include detection and
+      defense mechanisms, emphasizing that understanding attacks is necessary for
+      building robust defenses.
+
+  - section_number: 19
+    title: "Defense-in-Depth: Multi-Layer Security Architecture"
+    filename: "section_04_19_defense_in_depth.yaml"
+    estimated_pages: 8
+    part: 4
+    
+    topics:
+      - "Zero-trust architecture for LLM applications"
+      - "Input validation and sanitization at multiple layers"
+      - "Output filtering and content safety checks"
+      - "Least-privilege execution and sandboxing"
+    
+    key_concepts:
+      - "Security layers: network, API, application, model, data"
+      - "Fail-safe defaults and secure-by-design principles"
+      - "Separation of duties in LLM systems"
+      - "Defense redundancy and resilience"
+    
+    deliverables:
+      - "Complete defense-in-depth architecture implementation"
+      - "Multi-layer input validation framework"
+      - "Output safety checker with multiple moderation APIs"
+      - "Sandboxed execution environment for agents and tools"
+    
+    security_preview: |
+      Defense-in-depth ensures no single point of failure. This section builds a
+      comprehensive security architecture with multiple defensive layers, assuming
+      breach at each layer, implementing detection and response at every level.
+
+  - section_number: 20
+    title: "Red-Teaming, Adversarial Testing, and Security Validation"
+    filename: "section_04_20_red_teaming_adversarial_testing.yaml"
+    estimated_pages: 8
+    part: 4
+    
+    topics:
+      - "Automated red-teaming frameworks and attack generation"
+      - "Adversarial test case generation using LLMs"
+      - "Security regression testing and CI/CD integration"
+      - "Vulnerability scoring and prioritization"
+    
+    key_concepts:
+      - "Attack surface mapping for LLM systems"
+      - "Automated exploit generation and validation"
+      - "Continuous security testing pipelines"
+      - "Purple team exercises (red + blue collaboration)"
+    
+    deliverables:
+      - "Automated red-team testing framework"
+      - "LLM-powered adversarial test generator"
+      - "Security regression test suite"
+      - "Vulnerability management and tracking system"
+    
+    security_preview: |
+      Proactive security testing is essential. This section builds automated red-
+      teaming systems that continuously test for vulnerabilities, generate adversarial
+      cases, and validate defenses, creating a continuous security improvement cycle.
+
+  - section_number: 21
+    title: "Chapter 4 Comprehensive Summary and Production Readiness"
+    filename: "section_04_21_comprehensive_summary.yaml"
+    estimated_pages: 8
+    part: 4
+    
+    topics:
+      - "Complete review: RAG, agents, production deployment, security"
+      - "Integration pathways: combining techniques for robust systems"
+      - "Production readiness checklist and validation framework"
+      - "Future directions: emerging techniques and evolving threats"
+    
+    key_concepts:
+      - "End-to-end system design: from development to production"
+      - "Security maturity model for LLM applications"
+      - "Trade-off analysis: performance, cost, security"
+      - "Continuous improvement and adaptation strategies"
+    
+    deliverables:
+      - "Production readiness assessment framework"
+      - "Complete reference architecture with all Chapter 4 components"
+      - "Security checklist and validation tools"
+      - "Migration guide from prototype to production"
+    
+    security_preview: |
+      Final section synthesizes all Chapter 4 learnings into a complete production
+      system design. Provides comprehensive security validation, readiness assessment,
+      and ongoing security maintenance strategies for production LLM applications.
+
+estimated_totals:
+  total_sections: 21
+  estimated_total_pages: 156
+  total_pages_range: "147-165"
+  code_examples: "65+"
+  security_analyses: "21 comprehensive + numerous per-topic"
+  
+  breakdown_by_part:
+    part_1_advanced_techniques:
+      sections: 6
+      pages: "45-48"
+      focus: "RAG, prompting, fine-tuning fundamentals"
+    
+    part_2_agents_and_tools:
+      sections: 5
+      pages: "37-40"
+      focus: "Function calling, agents, workflows"
+    
+    part_3_production:
+      sections: 6
+      pages: "45-48"
+      focus: "Serving, scaling, monitoring, operations"
+    
+    part_4_security:
+      sections: 4
+      pages: "29-32"
+      focus: "Advanced attacks, defense, testing"
+
+teaching_philosophy:
+  - "Security-first: Every concept analyzed for vulnerabilities and defenses"
+  - "Build from scratch: NumPy implementations before using libraries"
+  - "Production-ready: Real-world, deployable code examples"
+  - "Progressive complexity: Each section builds on previous knowledge"
+  - "Ethical demonstrations: Attack examples only for educational defense"
+  - "Comprehensive coverage: No handwaving, explain the 'why' and 'how'"
+  - "Practical verification: Code examples are complete and runnable"
+
+integration_with_book:
+  builds_on:
+    chapter_1: "Python fundamentals, NumPy, software engineering"
+    chapter_2: "Deep learning, optimization, neural network training"
+    chapter_3: "Transformers, LLMs, attention, security fundamentals"
+  
+  prepares_for:
+    chapter_5: "Detection systems for LLM-powered applications"
+    chapter_6: "Deployment automation and MLOps for LLM security"
+    chapter_7: "Operational security and incident response"
+
+key_technologies:
+  core_libraries:
+    - "NumPy (foundational implementations)"
+    - "Transformers (Hugging Face)"
+    - "LangChain / LlamaIndex (RAG, agents)"
+    - "FastAPI / Flask (serving)"
+    - "FAISS / Pinecone (vector databases)"
+  
+  deployment:
+    - "Docker / Kubernetes"
+    - "Ray Serve / vLLM"
+    - "Prometheus / Grafana"
+    - "OpenTelemetry"
+  
+  security:
+    - "OAuth2 / JWT"
+    - "HashiCorp Vault"
+    - "Content moderation APIs"
+    - "Red-teaming frameworks"
+
+success_criteria:
+  student_can:
+    - "Build production RAG systems from scratch"
+    - "Implement and secure LLM agents with tool use"
+    - "Deploy LLMs at scale with optimization and monitoring"
+    - "Identify and defend against advanced LLM attacks"
+    - "Design zero-trust architectures for LLM applications"
+    - "Conduct security testing and validation"
+    - "Make informed decisions on fine-tuning vs prompting"
+    - "Optimize costs while maintaining security"
+
+---
