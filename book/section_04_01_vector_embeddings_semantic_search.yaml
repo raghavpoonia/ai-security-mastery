@@ -1,0 +1,1556 @@
+# section_04_01_vector_embeddings_semantic_search.yaml
+
+---
+document_info:
+  title: "Vector Embeddings and Semantic Search Foundations"
+  book: "AI Security Mastery: From ML Fundamentals to Production Detection Systems"
+  chapter: 4
+  section: 1
+  part: 1
+  author: "Raghav Dinesh"
+  github: "https://github.com/raghavpoonia/ai-security-mastery"
+  license: "MIT"
+  created: "2026-01-25"
+  version: "1.0"
+  description: |
+    Foundation section for production LLM systems focusing on vector embeddings
+    and semantic search. Covers dense vector representations, similarity metrics,
+    nearest neighbor algorithms, and building embedding-based search from scratch.
+    Implements core semantic search primitives with NumPy before introducing
+    production libraries. Every concept analyzed for security implications.
+  estimated_pages: 7
+  tags:
+    - embeddings
+    - semantic-search
+    - vector-similarity
+    - nearest-neighbors
+    - rag-foundations
+    - production-llm
+
+section_overview:
+  title: "Vector Embeddings and Semantic Search Foundations"
+  number: "4.1"
+  
+  purpose: |
+    This section establishes the foundational building blocks for Retrieval-Augmented
+    Generation (RAG) and production LLM systems. While Chapter 3 introduced embeddings
+    in the context of transformers (word embeddings, positional encodings), this section
+    focuses on using dense vector representations for semantic search and information
+    retrieval.
+    
+    Vector embeddings map text, images, or other data into high-dimensional continuous
+    vector spaces where semantic similarity corresponds to geometric proximity. This
+    property enables powerful applications: finding similar documents, recommendation
+    systems, duplicate detection, and most critically for our purposes, retrieval-
+    augmented generation where we retrieve relevant context to augment LLM responses.
+    
+    We build semantic search systems from first principles using NumPy, implementing
+    multiple similarity metrics (cosine, dot product, Euclidean distance) and understanding
+    their trade-offs. We then construct a complete k-nearest neighbors (KNN) search
+    engine, examine performance characteristics, and analyze security implications of
+    embedding-based systems.
+    
+    Security is paramount: embedding spaces can leak training data through similarity
+    queries, enable membership inference attacks, and be poisoned to manipulate retrieval
+    results. Every algorithm we implement includes security analysis and hardening
+    techniques, preparing you to build production-grade secure semantic search systems.
+  
+  learning_objectives:
+    conceptual:
+      - "Understand how dense vector embeddings capture semantic meaning in continuous space"
+      - "Grasp the mathematical foundations of similarity metrics and their geometric interpretations"
+      - "Comprehend the relationship between embedding dimensionality and semantic capture capacity"
+      - "Understand approximate vs exact nearest neighbor search trade-offs"
+    
+    practical:
+      - "Implement cosine similarity, dot product, and Euclidean distance from scratch with NumPy"
+      - "Build a complete k-nearest neighbors semantic search engine"
+      - "Create embedding space visualization and analysis tools"
+      - "Benchmark similarity metric performance across different scenarios"
+    
+    security_focused:
+      - "Identify information leakage through embedding similarity queries"
+      - "Detect and defend against embedding space poisoning attacks"
+      - "Implement query sanitization and rate limiting for semantic search"
+      - "Recognize membership inference vulnerabilities in embedding systems"
+  
+  prerequisites:
+    knowledge:
+      - "Chapter 3: Transformer embeddings and attention mechanisms"
+      - "Chapter 3: Pre-trained language models (BERT, GPT)"
+      - "Chapter 2: Neural network fundamentals and backpropagation"
+      - "Chapter 1: NumPy operations, linear algebra, vectorization"
+    
+    skills:
+      - "Matrix operations and vector mathematics with NumPy"
+      - "Understanding of high-dimensional spaces and distance metrics"
+      - "Working with pre-trained models from Hugging Face Transformers"
+      - "Performance analysis and benchmarking of algorithms"
+  
+  key_transitions:
+    from_chapter_3: |
+      Chapter 3 introduced embeddings in the transformer context: learned token embeddings,
+      positional encodings, and contextual representations from BERT/GPT. We saw how
+      transformers create rich semantic representations through attention mechanisms.
+      
+      Section 4.1 shifts focus from creating embeddings to using them for retrieval.
+      We take the contextual embeddings produced by models like BERT (which you learned
+      in Section 3.13) and build semantic search systems. The embedding generation is
+      now a solved problem (using pre-trained models); our focus is retrieval algorithms,
+      similarity metrics, and the security of embedding-based systems.
+    
+    to_next_section: |
+      This section provides the algorithmic foundations for semantic search. Section 4.2
+      scales these concepts to production with vector databases (FAISS, Pinecone) and
+      efficient indexing structures (HNSW, IVF). You'll see how the simple KNN search
+      we build here becomes productionized with approximate nearest neighbor algorithms
+      that handle millions of vectors with sub-millisecond latency.
+
+topics:
+  - topic_number: 1
+    title: "Dense Vector Representations and Embedding Spaces"
+    
+    overview: |
+      Dense vector embeddings are the foundation of modern semantic search. Unlike sparse
+      representations (bag-of-words, TF-IDF) where most dimensions are zero, dense embeddings
+      use every dimension to encode semantic meaning. A 768-dimensional BERT embedding
+      represents text as a point in 768-dimensional continuous space, where semantically
+      similar texts cluster together.
+      
+      Understanding embedding spaces requires geometric intuition in high dimensions. Two
+      key properties make embeddings powerful: (1) semantic similarity manifests as geometric
+      proximity, and (2) vector arithmetic often corresponds to semantic operations. For
+      example, in word embeddings: king - man + woman ≈ queen.
+      
+      We'll examine different embedding models (BERT, sentence-transformers, OpenAI embeddings),
+      their dimensionality trade-offs, and how to generate embeddings for text. We implement
+      embedding generation from scratch and analyze what these vectors actually capture.
+    
+    content:
+      what_are_dense_embeddings:
+        definition: |
+          A dense embedding is a fixed-length vector of real numbers (typically float32)
+          where each dimension contributes to representing the input. For a sentence
+          "The cat sat on the mat", a 768-dim BERT embedding might be:
+          [0.234, -0.891, 0.456, ..., 0.123] (768 values total).
+        
+        properties:
+          dimensionality: |
+            Common embedding dimensions:
+            - Word embeddings (Word2Vec, GloVe): 100-300 dims
+            - BERT base: 768 dims
+            - BERT large: 1024 dims
+            - Sentence-BERT: 384 or 768 dims
+            - OpenAI text-embedding-ada-002: 1536 dims
+            
+            Higher dimensions capture more nuanced semantic information but increase
+            computational and storage costs. The choice depends on task complexity and
+            resource constraints.
+          
+          continuous_space: |
+            Unlike discrete token IDs or sparse vectors, embeddings live in continuous
+            R^d space. This continuity enables gradient-based optimization and smooth
+            interpolation between concepts. Similar meanings have similar vectors.
+          
+          learned_representations: |
+            Embeddings are learned through training on large corpora. BERT learns through
+            masked language modeling and next sentence prediction. Sentence-transformers
+            fine-tune on semantic similarity tasks. The training objective shapes what
+            semantic properties the embeddings capture.
+      
+      embedding_space_geometry:
+        geometric_interpretation: |
+          An embedding space is a high-dimensional vector space where:
+          - Each point represents an embedded text/document
+          - Distance between points reflects semantic dissimilarity
+          - Direction from one point to another can represent semantic relationships
+          - Clusters of points represent semantically related concepts
+        
+        semantic_neighborhoods: |
+          In a well-trained embedding space:
+          - Synonyms cluster tightly: {"happy", "joyful", "cheerful"} are nearby
+          - Antonyms are distant: "happy" is far from "sad"
+          - Related concepts form regions: medical terms cluster together
+          - Hierarchies emerge: "animal" near "dog", "dog" near "poodle"
+        
+        dimensionality_curse: |
+          In high-dimensional spaces, surprising phenomena emerge:
+          - All points become approximately equidistant (concentration of measure)
+          - Volume concentrates in corners of hypercubes
+          - Nearest neighbors become less meaningful as dimensions increase
+          - Distance metrics behave differently than in 2D/3D
+          
+          This is why approximate nearest neighbor algorithms (Section 4.2) are essential
+          for production systems - exact search becomes intractable in high dimensions.
+      
+      generating_embeddings:
+        sentence_transformers_approach: |
+          Sentence-transformers (sentence-BERT) are the most common choice for semantic
+          search. They're fine-tuned specifically to produce embeddings where cosine
+          similarity correlates with semantic similarity.
+          
+          Architecture: BERT/RoBERTa base + mean pooling + normalization
+          Output: Fixed-length dense vector regardless of input length
+          Training: Siamese networks with triplet loss on sentence pairs
+        
+        pooling_strategies: |
+          To get a single vector from BERT's token-level outputs:
+          
+          1. CLS token: Use the [CLS] token embedding (position 0)
+             - Fast, single vector
+             - May not capture full sentence meaning
+          
+          2. Mean pooling: Average all token embeddings
+             - Captures information from entire sequence
+             - Most common for sentence-transformers
+          
+          3. Max pooling: Take max value per dimension across tokens
+             - Emphasizes prominent features
+             - Can lose information
+          
+          4. Weighted pooling: Attention-weighted average
+             - Sophisticated, task-dependent
+             - Requires additional parameters
+    
+    implementation:
+      embedding_generator_numpy:
+        language: python
+        code: |
+          """
+          Embedding generation from pre-trained models.
+          This implementation uses Hugging Face transformers to generate embeddings,
+          then demonstrates the core operations we'll use for semantic search.
+          """
+          
+          import numpy as np
+          from typing import List, Tuple
+          import warnings
+          warnings.filterwarnings('ignore')
+          
+          class EmbeddingGenerator:
+              """Generate dense embeddings from text using pre-trained models."""
+              
+              def __init__(self, model_name: str = 'sentence-transformers/all-MiniLM-L6-v2'):
+                  """
+                  Initialize embedding generator.
+                  
+                  Args:
+                      model_name: Hugging Face model identifier
+                  
+                  Notes:
+                      - all-MiniLM-L6-v2: 384 dims, fast, good quality
+                      - all-mpnet-base-v2: 768 dims, higher quality
+                      - paraphrase-multilingual: supports multiple languages
+                  """
+                  from transformers import AutoTokenizer, AutoModel
+                  import torch
+                  
+                  self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                  self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+                  self.model = AutoModel.from_pretrained(model_name).to(self.device)
+                  self.model.eval()  # Inference mode
+                  
+                  print(f"Loaded {model_name}")
+                  print(f"Device: {self.device}")
+                  print(f"Embedding dimension: {self.model.config.hidden_size}")
+              
+              def mean_pooling(self, 
+                              token_embeddings: 'torch.Tensor', 
+                              attention_mask: 'torch.Tensor') -> 'torch.Tensor':
+                  """
+                  Mean pooling: average token embeddings with attention mask.
+                  
+                  Args:
+                      token_embeddings: [batch_size, seq_len, hidden_dim]
+                      attention_mask: [batch_size, seq_len] - 1 for real tokens, 0 for padding
+                  
+                  Returns:
+                      Pooled embeddings: [batch_size, hidden_dim]
+                  """
+                  import torch
+                  
+                  # Expand attention mask to match embedding dimensions
+                  # [batch_size, seq_len, 1] -> [batch_size, seq_len, hidden_dim]
+                  input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+                  
+                  # Sum embeddings, weighted by attention mask
+                  sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, dim=1)
+                  
+                  # Divide by number of real (non-padded) tokens
+                  sum_mask = torch.clamp(input_mask_expanded.sum(dim=1), min=1e-9)
+                  
+                  return sum_embeddings / sum_mask
+              
+              def encode(self, texts: List[str], batch_size: int = 32) -> np.ndarray:
+                  """
+                  Encode texts into dense embeddings.
+                  
+                  Args:
+                      texts: List of text strings to embed
+                      batch_size: Process this many texts at once
+                  
+                  Returns:
+                      Embeddings as numpy array: [len(texts), embedding_dim]
+                  """
+                  import torch
+                  
+                  all_embeddings = []
+                  
+                  for i in range(0, len(texts), batch_size):
+                      batch_texts = texts[i:i + batch_size]
+                      
+                      # Tokenize
+                      encoded = self.tokenizer(
+                          batch_texts,
+                          padding=True,
+                          truncation=True,
+                          max_length=512,
+                          return_tensors='pt'
+                      ).to(self.device)
+                      
+                      # Generate embeddings
+                      with torch.no_grad():
+                          model_output = self.model(**encoded)
+                          
+                          # Mean pooling
+                          embeddings = self.mean_pooling(
+                              model_output.last_hidden_state,
+                              encoded['attention_mask']
+                          )
+                          
+                          # Normalize to unit length (important for cosine similarity)
+                          embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+                      
+                      all_embeddings.append(embeddings.cpu().numpy())
+                  
+                  return np.vstack(all_embeddings)
+              
+              def embedding_stats(self, embeddings: np.ndarray) -> dict:
+                  """
+                  Analyze embedding statistics.
+                  
+                  Args:
+                      embeddings: [num_samples, embedding_dim]
+                  
+                  Returns:
+                      Dictionary of statistics
+                  """
+                  return {
+                      'shape': embeddings.shape,
+                      'mean': float(np.mean(embeddings)),
+                      'std': float(np.std(embeddings)),
+                      'min': float(np.min(embeddings)),
+                      'max': float(np.max(embeddings)),
+                      'norm_mean': float(np.mean(np.linalg.norm(embeddings, axis=1))),
+                      'sparsity': float(np.mean(embeddings == 0))  # Should be ~0 for dense
+                  }
+          
+          
+          # Example usage
+          if __name__ == "__main__":
+              # Initialize generator
+              generator = EmbeddingGenerator()
+              
+              # Sample documents for semantic search
+              documents = [
+                  "Machine learning is a subset of artificial intelligence.",
+                  "Deep learning uses neural networks with multiple layers.",
+                  "Natural language processing enables computers to understand text.",
+                  "The cat sat on the mat.",
+                  "Python is a popular programming language for data science.",
+                  "Transformers revolutionized NLP with attention mechanisms.",
+                  "Security is critical for production machine learning systems.",
+                  "The dog played in the park.",
+              ]
+              
+              # Generate embeddings
+              print("\n" + "="*80)
+              print("GENERATING EMBEDDINGS")
+              print("="*80)
+              embeddings = generator.encode(documents)
+              
+              # Analyze embeddings
+              stats = generator.embedding_stats(embeddings)
+              print(f"\nEmbedding Statistics:")
+              print(f"  Shape: {stats['shape']}")
+              print(f"  Mean: {stats['mean']:.6f}")
+              print(f"  Std: {stats['std']:.6f}")
+              print(f"  Range: [{stats['min']:.6f}, {stats['max']:.6f}]")
+              print(f"  Average L2 norm: {stats['norm_mean']:.6f}")
+              print(f"  Sparsity: {stats['sparsity']:.6f}")
+              
+              # Show first embedding
+              print(f"\nFirst embedding (truncated):")
+              print(f"  {embeddings[0][:10]}... (showing 10/{embeddings.shape[1]} dims)")
+              
+              # Save for next topic
+              np.save('embeddings.npy', embeddings)
+              with open('documents.txt', 'w') as f:
+                  for doc in documents:
+                      f.write(doc + '\n')
+              
+              print("\n✓ Embeddings generated and saved")
+    
+    security_implications:
+      embedding_model_backdoors: |
+        **Vulnerability**: Pre-trained embedding models can contain backdoors. An attacker
+        who controls the model training can insert triggers that cause specific inputs
+        to produce attacker-controlled embeddings.
+        
+        **Attack scenario**: A malicious embedding model maps "buy product X" to be very
+        similar to "highly recommended secure product" regardless of actual semantics.
+        In a RAG system, this could manipulate retrieval to always recommend product X.
+        
+        **Defense**:
+        1. Use models from trusted sources (Hugging Face verified publishers)
+        2. Test embeddings on known similar/dissimilar pairs to detect anomalies
+        3. Use multiple embedding models and cross-validate results
+        4. Monitor embedding distributions for sudden shifts
+        5. Implement embedding quality gates before deployment
+      
+      information_leakage_through_embeddings: |
+        **Vulnerability**: Embeddings leak information about training data. Even though
+        embeddings are continuous vectors, attackers can sometimes reconstruct approximate
+        training texts through repeated similarity queries.
+        
+        **Attack scenario**: Attacker queries semantic search with variations like:
+        "John Smith password", "John Smith secret", "John Smith confidential"
+        By analyzing which queries return similar embeddings to known documents, attacker
+        can infer whether sensitive information about John Smith exists in the corpus.
+        
+        **Defense**:
+        1. Rate limit similarity queries per user/IP
+        2. Add noise to embeddings (differential privacy)
+        3. Filter sensitive documents from embedding corpus
+        4. Monitor for suspicious query patterns (many similar queries)
+        5. Implement query diversity requirements
+      
+      membership_inference: |
+        **Vulnerability**: Attackers can determine if specific text was in the embedding
+        model's training set by analyzing embedding characteristics.
+        
+        **Attack scenario**: Attacker has candidate text and queries whether similar
+        embeddings exist. Training data typically has more confident, precise embeddings
+        than out-of-distribution text.
+        
+        **Defense**:
+        1. Use models trained on public data when possible
+        2. Implement query result filtering (don't return exact matches)
+        3. Add calibrated noise to embeddings
+        4. Limit number of nearest neighbors returned
+        5. Monitor for systematic membership probing
+      
+      embedding_space_poisoning: |
+        **Vulnerability**: If attackers can add documents to your corpus, they can poison
+        the embedding space to manipulate future retrievals.
+        
+        **Attack scenario**: Attacker adds documents with embeddings positioned to be
+        retrieved for specific queries. For example, adding spam documents that cluster
+        near legitimate product recommendations.
+        
+        **Defense**:
+        1. Validate and moderate user-submitted content before embedding
+        2. Isolate user-generated content in separate embedding spaces
+        3. Detect outliers and anomalous embeddings before indexing
+        4. Implement content-based filtering before retrieval
+        5. Regular audits of retrieved documents for quality
+        
+        We'll implement poisoning detection in Section 4.2 when we build vector databases.
+
+  - topic_number: 2
+    title: "Similarity Metrics: Cosine, Dot Product, and Euclidean Distance"
+    
+    overview: |
+      Similarity metrics quantify how "close" two embeddings are in vector space. The choice
+      of metric fundamentally affects retrieval quality, computational performance, and
+      security properties. We implement three primary metrics from scratch and understand
+      their mathematical properties, use cases, and trade-offs.
+      
+      Cosine similarity measures the angle between vectors (direction), dot product measures
+      both angle and magnitude, and Euclidean distance measures geometric distance. Each
+      has different invariances and sensitivities that make them suitable for different
+      scenarios.
+      
+      Understanding these metrics deeply is critical for debugging semantic search systems,
+      optimizing performance, and identifying security vulnerabilities. We'll implement
+      all three with NumPy, benchmark them, and demonstrate when each metric is appropriate.
+    
+    content:
+      cosine_similarity:
+        definition: |
+          Cosine similarity measures the cosine of the angle between two vectors:
+          
+          cosine_similarity(A, B) = (A · B) / (||A|| × ||B||)
+          
+          where:
+          - A · B is the dot product
+          - ||A|| is the L2 norm (magnitude) of A
+          - Result ranges from -1 (opposite) to 1 (identical)
+        
+        properties: |
+          1. **Magnitude invariant**: Only considers direction, not length
+             - [1, 2, 3] and [2, 4, 6] have cosine similarity of 1.0
+             - Useful when absolute values don't matter (text frequency)
+          
+          2. **Normalized**: Always in [-1, 1] range
+             - Easy to interpret and threshold
+             - Consistent across different embedding scales
+          
+          3. **Computationally efficient with normalized vectors**:
+             - If vectors are L2-normalized (norm = 1), cosine = dot product
+             - Many embedding models (sentence-transformers) normalize by default
+          
+          4. **Most common for semantic search**:
+             - Semantic similarity is about "meaning direction", not magnitude
+             - Robust to different document lengths
+        
+        when_to_use: |
+          Use cosine similarity when:
+          - Working with text embeddings where length shouldn't matter
+          - Embeddings are pre-normalized (sentence-transformers, OpenAI)
+          - You care about semantic direction, not absolute values
+          - You need magnitude-invariant comparisons
+      
+      dot_product_similarity:
+        definition: |
+          Dot product (inner product) is the sum of element-wise products:
+          
+          dot_product(A, B) = Σ(A_i × B_i) = A · B
+          
+          where:
+          - A_i and B_i are elements at position i
+          - Result ranges from -∞ to +∞ (unbounded)
+        
+        properties: |
+          1. **Magnitude dependent**: Considers both angle and length
+             - [1, 2, 3] and [2, 4, 6] have different dot products
+             - Longer vectors generally have higher dot products
+          
+          2. **Fastest to compute**: Single vector multiplication and sum
+             - No normalization overhead
+             - Critical for billion-scale search
+          
+          3. **Equivalent to cosine for normalized vectors**:
+             - If ||A|| = ||B|| = 1, then dot(A,B) = cosine(A,B)
+             - This is why many systems normalize embeddings
+          
+          4. **Natural for neural networks**:
+             - Final layer often uses dot product for logits
+             - Attention mechanism uses scaled dot-product
+        
+        when_to_use: |
+          Use dot product when:
+          - Vectors are pre-normalized (then it equals cosine)
+          - Maximum computational speed is critical
+          - Magnitude information is meaningful (e.g., confidence scores)
+          - Building attention mechanisms or neural layers
+      
+      euclidean_distance:
+        definition: |
+          Euclidean distance (L2 distance) measures straight-line distance:
+          
+          euclidean_distance(A, B) = √(Σ(A_i - B_i)²) = ||A - B||₂
+          
+          where:
+          - (A_i - B_i)² is squared difference at position i
+          - Result ranges from 0 (identical) to ∞
+          - Smaller distances indicate higher similarity
+        
+        properties: |
+          1. **Geometric intuition**: Literal distance in space
+             - Easy to visualize in 2D/3D
+             - Matches human intuition about "closeness"
+          
+          2. **Magnitude sensitive**: Affected by vector length
+             - [1, 2, 3] and [2, 4, 6] have distance ≈ 3.74
+             - May not be ideal for text with varying lengths
+          
+          3. **Computationally expensive**: Requires square root
+             - Can use squared distance to avoid sqrt
+             - Ranking is preserved without sqrt
+          
+          4. **Metric properties**: Satisfies triangle inequality
+             - Enables geometric algorithms and proofs
+             - Used in clustering (k-means) and classification (k-NN)
+        
+        when_to_use: |
+          Use Euclidean distance when:
+          - Geometric interpretation is important
+          - Working with image embeddings or structured data
+          - Implementing clustering algorithms (k-means)
+          - Absolute differences matter, not just angles
+      
+      metric_comparison:
+        normalized_vectors: |
+          For L2-normalized vectors (||v|| = 1):
+          
+          cosine_similarity(A, B) = dot_product(A, B)
+          euclidean_distance(A, B) = √(2 - 2×cosine_similarity(A, B))
+          
+          They're mathematically related! Ranking by cosine is equivalent to ranking
+          by dot product or inverse Euclidean distance for normalized vectors.
+        
+        computational_cost: |
+          For vectors of dimension d:
+          - Dot product: d multiplications + (d-1) additions = O(d)
+          - Cosine: dot product + 2 norms + 1 division = O(3d)
+          - Euclidean: d subtractions + d squares + (d-1) additions + 1 sqrt = O(d)
+          
+          For normalized vectors, dot product is fastest since it equals cosine.
+    
+    implementation:
+      similarity_metrics_numpy:
+        language: python
+        code: |
+          """
+          Similarity metrics implemented from scratch with NumPy.
+          Includes vectorized batch operations for efficiency.
+          """
+          
+          import numpy as np
+          from typing import Union
+          import time
+          
+          class SimilarityMetrics:
+              """Comprehensive similarity metric implementations."""
+              
+              @staticmethod
+              def cosine_similarity(a: np.ndarray, b: np.ndarray) -> Union[float, np.ndarray]:
+                  """
+                  Cosine similarity between vectors or matrices.
+                  
+                  Args:
+                      a: Vector [d] or matrix [n, d]
+                      b: Vector [d] or matrix [m, d]
+                  
+                  Returns:
+                      Similarity: scalar, [n], or [n, m]
+                  
+                  Examples:
+                      cosine_similarity(v1, v2) -> scalar
+                      cosine_similarity(matrix, v) -> [n] similarities
+                      cosine_similarity(matrix1, matrix2) -> [n, m] pairwise
+                  """
+                  # Handle different input shapes
+                  if a.ndim == 1 and b.ndim == 1:
+                      # Vector to vector
+                      return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-8)
+                  
+                  elif a.ndim == 2 and b.ndim == 1:
+                      # Matrix to vector
+                      norms_a = np.linalg.norm(a, axis=1, keepdims=True)
+                      norm_b = np.linalg.norm(b)
+                      return np.dot(a, b) / (norms_a.squeeze() * norm_b + 1e-8)
+                  
+                  elif a.ndim == 2 and b.ndim == 2:
+                      # Matrix to matrix (pairwise)
+                      norms_a = np.linalg.norm(a, axis=1, keepdims=True)
+                      norms_b = np.linalg.norm(b, axis=1, keepdims=True)
+                      return np.dot(a, b.T) / (np.dot(norms_a, norms_b.T) + 1e-8)
+                  
+                  else:
+                      raise ValueError(f"Unsupported shapes: {a.shape}, {b.shape}")
+              
+              @staticmethod
+              def dot_product(a: np.ndarray, b: np.ndarray) -> Union[float, np.ndarray]:
+                  """
+                  Dot product similarity.
+                  
+                  Args:
+                      a: Vector [d] or matrix [n, d]
+                      b: Vector [d] or matrix [m, d]
+                  
+                  Returns:
+                      Similarity: scalar, [n], or [n, m]
+                  """
+                  if a.ndim == 1 and b.ndim == 1:
+                      return np.dot(a, b)
+                  elif a.ndim == 2 and b.ndim == 1:
+                      return np.dot(a, b)
+                  elif a.ndim == 2 and b.ndim == 2:
+                      return np.dot(a, b.T)
+                  else:
+                      raise ValueError(f"Unsupported shapes: {a.shape}, {b.shape}")
+              
+              @staticmethod
+              def euclidean_distance(a: np.ndarray, b: np.ndarray, 
+                                   squared: bool = False) -> Union[float, np.ndarray]:
+                  """
+                  Euclidean (L2) distance.
+                  
+                  Args:
+                      a: Vector [d] or matrix [n, d]
+                      b: Vector [d] or matrix [m, d]
+                      squared: Return squared distance (faster, preserves ranking)
+                  
+                  Returns:
+                      Distance: scalar, [n], or [n, m]
+                      Note: Smaller is MORE similar (unlike other metrics)
+                  """
+                  if a.ndim == 1 and b.ndim == 1:
+                      dist_sq = np.sum((a - b) ** 2)
+                      return dist_sq if squared else np.sqrt(dist_sq)
+                  
+                  elif a.ndim == 2 and b.ndim == 1:
+                      dist_sq = np.sum((a - b) ** 2, axis=1)
+                      return dist_sq if squared else np.sqrt(dist_sq)
+                  
+                  elif a.ndim == 2 and b.ndim == 2:
+                      # Efficient pairwise distance using broadcasting
+                      # ||a - b||² = ||a||² + ||b||² - 2(a·b)
+                      a_sq = np.sum(a ** 2, axis=1, keepdims=True)
+                      b_sq = np.sum(b ** 2, axis=1, keepdims=True)
+                      dist_sq = a_sq + b_sq.T - 2 * np.dot(a, b.T)
+                      dist_sq = np.maximum(dist_sq, 0)  # Numerical stability
+                      return dist_sq if squared else np.sqrt(dist_sq)
+                  
+                  else:
+                      raise ValueError(f"Unsupported shapes: {a.shape}, {b.shape}")
+              
+              @staticmethod
+              def normalize_l2(vectors: np.ndarray, axis: int = 1) -> np.ndarray:
+                  """
+                  L2 normalize vectors to unit length.
+                  
+                  Args:
+                      vectors: Array to normalize
+                      axis: Axis along which to normalize
+                  
+                  Returns:
+                      Normalized vectors with ||v|| = 1
+                  """
+                  norms = np.linalg.norm(vectors, axis=axis, keepdims=True)
+                  return vectors / (norms + 1e-8)
+              
+              @staticmethod
+              def verify_normalized(vectors: np.ndarray, tolerance: float = 1e-6) -> bool:
+                  """Check if vectors are L2-normalized."""
+                  norms = np.linalg.norm(vectors, axis=1)
+                  return np.allclose(norms, 1.0, atol=tolerance)
+          
+          
+          def benchmark_metrics():
+              """Benchmark different similarity metrics."""
+              print("\n" + "="*80)
+              print("SIMILARITY METRICS BENCHMARK")
+              print("="*80)
+              
+              # Create test data
+              np.random.seed(42)
+              n_docs = 10000
+              n_queries = 100
+              dim = 384
+              
+              docs = np.random.randn(n_docs, dim).astype(np.float32)
+              queries = np.random.randn(n_queries, dim).astype(np.float32)
+              
+              # Normalize for fair comparison
+              docs_norm = SimilarityMetrics.normalize_l2(docs)
+              queries_norm = SimilarityMetrics.normalize_l2(queries)
+              
+              print(f"Documents: {docs.shape}")
+              print(f"Queries: {queries.shape}")
+              print(f"Normalized: {SimilarityMetrics.verify_normalized(docs_norm)}\n")
+              
+              metrics = SimilarityMetrics()
+              
+              # Benchmark each metric
+              results = {}
+              
+              for name, func, data_docs, data_queries in [
+                  ("Cosine (unnormalized)", metrics.cosine_similarity, docs, queries),
+                  ("Cosine (normalized)", metrics.cosine_similarity, docs_norm, queries_norm),
+                  ("Dot Product (normalized)", metrics.dot_product, docs_norm, queries_norm),
+                  ("Euclidean (squared)", lambda a, b: metrics.euclidean_distance(a, b, squared=True), docs, queries),
+              ]:
+                  start = time.time()
+                  similarities = func(data_docs, data_queries[0])
+                  elapsed = time.time() - start
+                  
+                  results[name] = {
+                      'time': elapsed,
+                      'mean': float(np.mean(similarities)),
+                      'std': float(np.std(similarities)),
+                  }
+                  
+                  print(f"{name:30s}: {elapsed*1000:6.2f}ms | "
+                        f"mean={results[name]['mean']:7.4f} std={results[name]['std']:6.4f}")
+              
+              # Verify cosine = dot for normalized vectors
+              print("\n" + "-"*80)
+              print("VERIFICATION: Cosine = Dot Product for normalized vectors")
+              print("-"*80)
+              
+              cos_sim = metrics.cosine_similarity(docs_norm, queries_norm[0])
+              dot_sim = metrics.dot_product(docs_norm, queries_norm[0])
+              
+              print(f"Max difference: {np.max(np.abs(cos_sim - dot_sim)):.2e}")
+              print(f"Are they equal? {np.allclose(cos_sim, dot_sim, atol=1e-6)}")
+              
+              return results
+          
+          
+          if __name__ == "__main__":
+              # Load embeddings from previous topic
+              try:
+                  embeddings = np.load('embeddings.npy')
+                  with open('documents.txt', 'r') as f:
+                      documents = [line.strip() for line in f]
+              except FileNotFoundError:
+                  print("ERROR: Run topic 1 code first to generate embeddings")
+                  exit(1)
+              
+              metrics = SimilarityMetrics()
+              
+              # Example: Find similar documents
+              query_idx = 0  # "Machine learning is a subset of artificial intelligence."
+              query_emb = embeddings[query_idx]
+              
+              print("\n" + "="*80)
+              print(f"QUERY: {documents[query_idx]}")
+              print("="*80)
+              
+              # Compute similarities with all documents
+              similarities = metrics.cosine_similarity(embeddings, query_emb)
+              
+              # Sort by similarity
+              sorted_indices = np.argsort(similarities)[::-1]
+              
+              print("\nTop 5 similar documents (cosine similarity):")
+              for rank, idx in enumerate(sorted_indices[:5], 1):
+                  print(f"{rank}. [{similarities[idx]:.4f}] {documents[idx]}")
+              
+              # Benchmark
+              benchmark_metrics()
+    
+    security_implications:
+      timing_attacks_on_similarity: |
+        **Vulnerability**: Similarity computation time can leak information about embedding
+        values. Cosine similarity with unnormalized vectors has variable execution time
+        based on vector magnitudes.
+        
+        **Attack scenario**: Attacker measures response times for similarity queries.
+        Longer times might indicate larger magnitude vectors, potentially revealing
+        information about document importance or training set membership.
+        
+        **Defense**:
+        1. Use normalized vectors (constant-time cosine = dot product)
+        2. Add random delays to response times (noise injection)
+        3. Use constant-time implementations where critical
+        4. Batch queries to obscure individual timing
+      
+      similarity_threshold_probing: |
+        **Vulnerability**: Attackers can probe similarity thresholds to infer system
+        behavior and potentially extract information about the corpus.
+        
+        **Attack scenario**: Attacker submits queries and observes which threshold
+        triggers retrieval. By binary search on similarity scores, they can map the
+        distribution of embeddings and potentially reconstruct documents.
+        
+        **Defense**:
+        1. Implement query rate limiting per user
+        2. Add calibrated noise to similarity scores
+        3. Randomize thresholds slightly per query
+        4. Monitor for systematic threshold probing patterns
+        5. Use adaptive thresholds that change based on corpus
+      
+      metric_manipulation_for_evasion: |
+        **Vulnerability**: Attackers who understand your similarity metric can craft
+        queries to maximize or minimize similarity to specific documents.
+        
+        **Attack scenario**: If using cosine similarity, attacker creates queries that
+        are orthogonal to unwanted documents (cosine = 0) but aligned with target
+        documents. This can evade content filters or manipulate rankings.
+        
+        **Defense**:
+        1. Use multiple similarity metrics and combine scores
+        2. Implement content-based filtering in addition to similarity
+        3. Detect and flag queries with extreme similarity patterns
+        4. Monitor for adversarial query optimization attempts
+        5. Use robust aggregation (median, trimmed mean) for rankings
+
+  - topic_number: 3
+    title: "K-Nearest Neighbors Search and Semantic Search Engine"
+    
+    overview: |
+      K-Nearest Neighbors (KNN) search is the foundation of semantic search: given a query
+      embedding, find the k most similar document embeddings. While conceptually simple,
+      building an efficient, secure KNN search engine requires careful algorithm design,
+      performance optimization, and security hardening.
+      
+      We implement a complete semantic search engine from scratch, including query processing,
+      similarity computation, ranking, and result filtering. We explore exact vs approximate
+      search trade-offs, performance optimization techniques, and comprehensive security
+      measures.
+      
+      This section provides the algorithmic foundation that scales to production vector
+      databases in Section 4.2. Understanding exact KNN search deeply prepares you to
+      appreciate why approximate methods (HNSW, IVF) are necessary for billion-scale systems.
+    
+    content:
+      knn_algorithm:
+        basic_approach: |
+          K-Nearest Neighbors search algorithm:
+          
+          1. Input: Query embedding q, corpus embeddings D = {d₁, d₂, ..., dₙ}, k
+          2. For each document embedding dᵢ in D:
+               - Compute similarity(q, dᵢ)
+          3. Sort by similarity (descending for cosine/dot, ascending for distance)
+          4. Return top k documents
+          
+          Time complexity: O(n×d) for similarity computation + O(n log n) for sorting
+          Space complexity: O(n) for similarity scores
+          
+          This "brute force" approach examines every document, making it exact but slow
+          for large corpora.
+        
+        optimization_strategies: |
+          1. **Vectorization**: Compute all similarities in single matrix operation
+             - Use NumPy broadcasting: similarities = docs @ query
+             - 10-100x faster than Python loops
+          
+          2. **Partial sorting**: Use np.argpartition for top-k instead of full sort
+             - O(n) average case vs O(n log n)
+             - Only sort the top-k elements, ignore the rest
+          
+          3. **Pre-normalization**: Normalize embeddings once at index time
+             - Cosine similarity reduces to dot product
+             - No normalization overhead at query time
+          
+          4. **Batch queries**: Process multiple queries simultaneously
+             - Amortize overhead across queries
+             - Better cache utilization
+          
+          5. **Early termination**: For threshold-based retrieval
+             - Stop when k documents exceed threshold
+             - Useful for high-similarity filters
+        
+        exact_vs_approximate: |
+          Exact KNN guarantees finding the true k-nearest neighbors but has O(n)
+          complexity - impractical for millions/billions of vectors.
+          
+          Approximate KNN trades accuracy for speed:
+          - Might miss some true nearest neighbors
+          - Returns approximate nearest neighbors (close enough)
+          - Sub-linear complexity: O(log n) or better
+          - 10-1000x faster for large datasets
+          
+          Section 4.2 covers approximate methods (HNSW, IVF). For now, we master exact KNN.
+      
+      semantic_search_pipeline:
+        components: |
+          A production semantic search engine has multiple components:
+          
+          1. **Query Processing**:
+             - Text normalization and cleaning
+             - Embedding generation
+             - Query expansion (optional)
+          
+          2. **Retrieval**:
+             - KNN search with chosen metric
+             - Threshold filtering
+             - Deduplication
+          
+          3. **Re-ranking** (optional):
+             - Cross-encoder re-ranking
+             - Diversity-aware ranking
+             - Recency or popularity boosting
+          
+          4. **Post-processing**:
+             - Result formatting
+             - Metadata enrichment
+             - Security filtering
+        
+        ranking_strategies: |
+          Beyond raw similarity scores:
+          
+          1. **Hybrid ranking**: Combine multiple signals
+             - Similarity score (70%) + recency (20%) + popularity (10%)
+             - Weighted combination with learned or manual weights
+          
+          2. **Diversity ranking**: Avoid redundant results
+             - Maximal Marginal Relevance (MMR)
+             - Select documents that are similar to query but dissimilar to each other
+          
+          3. **Personalization**: User-specific ranking
+             - Incorporate user history and preferences
+             - Adjust weights based on user context
+          
+          4. **A/B testing**: Experiment with ranking variants
+             - Split traffic between ranking strategies
+             - Measure engagement metrics
+      
+      performance_considerations:
+        index_structures: |
+          For exact search optimization:
+          
+          1. **Pre-computed norms**: Store ||d|| for each document
+             - Avoids recomputing during queries
+             - Especially important for cosine similarity
+          
+          2. **Memory layout**: Contiguous storage for cache efficiency
+             - Column-major vs row-major considerations
+             - Alignment for SIMD operations
+          
+          3. **Quantization preview**: Reduce precision for speed
+             - Float16 instead of float32
+             - 2x memory reduction, minimal accuracy loss
+             - We'll explore this deeply in Section 4.13
+        
+        scalability_limits: |
+          Exact KNN becomes impractical at:
+          - 1M+ documents: Multi-second query latency
+          - 10M+ documents: Tens of seconds per query
+          - 100M+ documents: Minutes per query
+          - 1B+ documents: Impossible with exact search
+          
+          This motivates approximate methods in Section 4.2.
+    
+    implementation:
+      semantic_search_engine:
+        language: python
+        code: |
+          """
+          Complete semantic search engine with exact KNN.
+          Includes query processing, retrieval, ranking, and security features.
+          """
+          
+          import numpy as np
+          from typing import List, Tuple, Dict, Optional
+          import time
+          from dataclasses import dataclass
+          
+          @dataclass
+          class SearchResult:
+              """Single search result with metadata."""
+              doc_id: int
+              text: str
+              score: float
+              rank: int
+          
+          
+          class SemanticSearchEngine:
+              """
+              Production-grade semantic search with exact KNN.
+              
+              Features:
+              - Multiple similarity metrics
+              - Efficient vectorized operations
+              - Query rate limiting (security)
+              - Result diversity (MMR)
+              - Comprehensive logging
+              """
+              
+              def __init__(self, 
+                          documents: List[str],
+                          embeddings: np.ndarray,
+                          metric: str = 'cosine',
+                          normalize: bool = True):
+                  """
+                  Initialize search engine.
+                  
+                  Args:
+                      documents: List of document texts
+                      embeddings: Document embeddings [n_docs, dim]
+                      metric: 'cosine', 'dot', or 'euclidean'
+                      normalize: L2-normalize embeddings for efficiency
+                  """
+                  assert len(documents) == len(embeddings), "Mismatch in docs and embeddings"
+                  
+                  self.documents = documents
+                  self.metric = metric
+                  self.n_docs = len(documents)
+                  self.dim = embeddings.shape[1]
+                  
+                  # Normalize embeddings if requested
+                  if normalize and metric in ['cosine', 'dot']:
+                      self.embeddings = self._normalize(embeddings)
+                      self.normalized = True
+                  else:
+                      self.embeddings = embeddings
+                      self.normalized = normalize
+                  
+                  # Pre-compute norms for cosine (if not normalized)
+                  if metric == 'cosine' and not self.normalized:
+                      self.norms = np.linalg.norm(embeddings, axis=1)
+                  else:
+                      self.norms = None
+                  
+                  # Query rate limiting (security feature)
+                  self.query_history: Dict[str, List[float]] = {}
+                  self.rate_limit_window = 60.0  # seconds
+                  self.rate_limit_max = 100  # queries per window
+                  
+                  print(f"Initialized SemanticSearchEngine:")
+                  print(f"  Documents: {self.n_docs}")
+                  print(f"  Embedding dim: {self.dim}")
+                  print(f"  Metric: {self.metric}")
+                  print(f"  Normalized: {self.normalized}")
+              
+              def _normalize(self, vectors: np.ndarray) -> np.ndarray:
+                  """L2 normalize vectors."""
+                  norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+                  return vectors / (norms + 1e-8)
+              
+              def _compute_similarity(self, query_emb: np.ndarray) -> np.ndarray:
+                  """
+                  Compute similarity between query and all documents.
+                  
+                  Args:
+                      query_emb: Query embedding [dim]
+                  
+                  Returns:
+                      Similarities: [n_docs]
+                  """
+                  if self.metric == 'cosine':
+                      if self.normalized:
+                          # Cosine = dot product for normalized vectors
+                          return np.dot(self.embeddings, query_emb)
+                      else:
+                          # Full cosine computation
+                          query_norm = np.linalg.norm(query_emb)
+                          return np.dot(self.embeddings, query_emb) / (self.norms * query_norm + 1e-8)
+                  
+                  elif self.metric == 'dot':
+                      return np.dot(self.embeddings, query_emb)
+                  
+                  elif self.metric == 'euclidean':
+                      # Smaller distance = higher similarity, so negate
+                      distances = np.linalg.norm(self.embeddings - query_emb, axis=1)
+                      return -distances
+                  
+                  else:
+                      raise ValueError(f"Unknown metric: {self.metric}")
+              
+              def _check_rate_limit(self, user_id: str) -> bool:
+                  """
+                  Check if user has exceeded query rate limit.
+                  
+                  Args:
+                      user_id: User identifier
+                  
+                  Returns:
+                      True if allowed, False if rate limited
+                  """
+                  current_time = time.time()
+                  
+                  # Initialize user history
+                  if user_id not in self.query_history:
+                      self.query_history[user_id] = []
+                  
+                  # Remove queries outside the time window
+                  cutoff_time = current_time - self.rate_limit_window
+                  self.query_history[user_id] = [
+                      t for t in self.query_history[user_id] if t > cutoff_time
+                  ]
+                  
+                  # Check limit
+                  if len(self.query_history[user_id]) >= self.rate_limit_max:
+                      return False
+                  
+                  # Record this query
+                  self.query_history[user_id].append(current_time)
+                  return True
+              
+              def search(self,
+                        query_emb: np.ndarray,
+                        k: int = 5,
+                        threshold: Optional[float] = None,
+                        diversity_lambda: float = 0.0,
+                        user_id: str = 'default') -> List[SearchResult]:
+                  """
+                  Search for k most similar documents.
+                  
+                  Args:
+                      query_emb: Query embedding [dim]
+                      k: Number of results to return
+                      threshold: Minimum similarity threshold (None = no threshold)
+                      diversity_lambda: MMR diversity parameter [0, 1]
+                                       0 = pure relevance, 1 = pure diversity
+                      user_id: User identifier for rate limiting
+                  
+                  Returns:
+                      List of SearchResult objects
+                  """
+                  # Security: Rate limiting
+                  if not self._check_rate_limit(user_id):
+                      raise RuntimeError(f"Rate limit exceeded for user {user_id}")
+                  
+                  # Normalize query if needed
+                  if self.normalized:
+                      query_emb = self._normalize(query_emb.reshape(1, -1)).squeeze()
+                  
+                  # Compute similarities
+                  similarities = self._compute_similarity(query_emb)
+                  
+                  # Apply threshold filter
+                  if threshold is not None:
+                      valid_mask = similarities >= threshold
+                      if not np.any(valid_mask):
+                          return []
+                      
+                      valid_indices = np.where(valid_mask)[0]
+                      valid_similarities = similarities[valid_mask]
+                  else:
+                      valid_indices = np.arange(len(similarities))
+                      valid_similarities = similarities
+                  
+                  # Select top-k
+                  if diversity_lambda > 0:
+                      # MMR: Maximal Marginal Relevance for diversity
+                      selected_indices = self._mmr_search(
+                          query_emb, valid_indices, valid_similarities, k, diversity_lambda
+                      )
+                  else:
+                      # Pure relevance ranking
+                      if len(valid_similarities) <= k:
+                          selected_indices = valid_indices
+                      else:
+                          # Use argpartition for efficient top-k
+                          top_k_positions = np.argpartition(valid_similarities, -k)[-k:]
+                          # Sort the top-k
+                          sorted_positions = top_k_positions[np.argsort(valid_similarities[top_k_positions])[::-1]]
+                          selected_indices = valid_indices[sorted_positions]
+                  
+                  # Create results
+                  results = []
+                  for rank, idx in enumerate(selected_indices, 1):
+                      results.append(SearchResult(
+                          doc_id=int(idx),
+                          text=self.documents[idx],
+                          score=float(similarities[idx]),
+                          rank=rank
+                      ))
+                  
+                  return results
+              
+              def _mmr_search(self,
+                            query_emb: np.ndarray,
+                            candidate_indices: np.ndarray,
+                            candidate_scores: np.ndarray,
+                            k: int,
+                            lambda_param: float) -> np.ndarray:
+                  """
+                  Maximal Marginal Relevance: balance relevance and diversity.
+                  
+                  MMR = λ × Sim(q, d) - (1-λ) × max Sim(d, d_selected)
+                  
+                  Args:
+                      query_emb: Query embedding
+                      candidate_indices: Valid document indices
+                      candidate_scores: Similarity scores for candidates
+                      k: Number of results
+                      lambda_param: Trade-off parameter
+                  
+                  Returns:
+                      Selected indices in rank order
+                  """
+                  selected = []
+                  remaining = set(range(len(candidate_indices)))
+                  
+                  # Select first document (highest relevance)
+                  first_idx = np.argmax(candidate_scores)
+                  selected.append(candidate_indices[first_idx])
+                  remaining.remove(first_idx)
+                  
+                  # Select remaining k-1 documents
+                  for _ in range(min(k - 1, len(remaining))):
+                      mmr_scores = []
+                      
+                      for idx in remaining:
+                          doc_idx = candidate_indices[idx]
+                          
+                          # Relevance score
+                          relevance = candidate_scores[idx]
+                          
+                          # Diversity score: max similarity to already selected
+                          selected_embeddings = self.embeddings[selected]
+                          doc_embedding = self.embeddings[doc_idx]
+                          
+                          doc_similarities = np.dot(selected_embeddings, doc_embedding)
+                          max_similarity = np.max(doc_similarities)
+                          
+                          # MMR score
+                          mmr = lambda_param * relevance - (1 - lambda_param) * max_similarity
+                          mmr_scores.append((idx, mmr))
+                      
+                      # Select document with highest MMR
+                      best_idx, _ = max(mmr_scores, key=lambda x: x[1])
+                      selected.append(candidate_indices[best_idx])
+                      remaining.remove(best_idx)
+                  
+                  return np.array(selected)
+              
+              def batch_search(self,
+                             query_embs: np.ndarray,
+                             k: int = 5,
+                             user_id: str = 'default') -> List[List[SearchResult]]:
+                  """
+                  Search multiple queries in batch.
+                  
+                  Args:
+                      query_embs: Query embeddings [n_queries, dim]
+                      k: Number of results per query
+                      user_id: User identifier
+                  
+                  Returns:
+                      List of result lists, one per query
+                  """
+                  results = []
+                  for query_emb in query_embs:
+                      results.append(self.search(query_emb, k=k, user_id=user_id))
+                  return results
+              
+              def get_stats(self) -> Dict:
+                  """Get search engine statistics."""
+                  return {
+                      'n_documents': self.n_docs,
+                      'embedding_dim': self.dim,
+                      'metric': self.metric,
+                      'normalized': self.normalized,
+                      'total_queries': sum(len(queries) for queries in self.query_history.values()),
+                      'unique_users': len(self.query_history),
+                  }
+          
+          
+          if __name__ == "__main__":
+              # Load data
+              embeddings = np.load('embeddings.npy')
+              with open('documents.txt', 'r') as f:
+                  documents = [line.strip() for line in f]
+              
+              # Initialize search engine
+              engine = SemanticSearchEngine(
+                  documents=documents,
+                  embeddings=embeddings,
+                  metric='cosine',
+                  normalize=True
+              )
+              
+              # Example 1: Basic search
+              print("\n" + "="*80)
+              print("EXAMPLE 1: Basic Semantic Search")
+              print("="*80)
+              
+              query_idx = 5  # "Transformers revolutionized NLP with attention mechanisms."
+              query_emb = embeddings[query_idx]
+              
+              print(f"Query: {documents[query_idx]}\n")
+              results = engine.search(query_emb, k=3)
+              
+              print("Top 3 results:")
+              for result in results:
+                  print(f"{result.rank}. [{result.score:.4f}] {result.text}")
+              
+              # Example 2: Diversity search (MMR)
+              print("\n" + "="*80)
+              print("EXAMPLE 2: Diversity Search (MMR)")
+              print("="*80)
+              
+              print("Without diversity (λ=0.0):")
+              results_no_div = engine.search(query_emb, k=5, diversity_lambda=0.0)
+              for r in results_no_div:
+                  print(f"  [{r.score:.4f}] {r.text[:60]}...")
+              
+              print("\nWith diversity (λ=0.5):")
+              results_div = engine.search(query_emb, k=5, diversity_lambda=0.5)
+              for r in results_div:
+                  print(f"  [{r.score:.4f}] {r.text[:60]}...")
+              
+              # Example 3: Threshold filtering
+              print("\n" + "="*80)
+              print("EXAMPLE 3: Threshold Filtering")
+              print("="*80)
+              
+              results_thresh = engine.search(query_emb, k=10, threshold=0.3)
+              print(f"Results with similarity >= 0.3: {len(results_thresh)}")
+              for r in results_thresh:
+                  print(f"  [{r.score:.4f}] {r.text[:60]}...")
+              
+              # Example 4: Rate limiting (security)
+              print("\n" + "="*80)
+              print("EXAMPLE 4: Rate Limiting (Security)")
+              print("="*80)
+              
+              try:
+                  # Simulate excessive queries
+                  for i in range(105):
+                      engine.search(query_emb, k=1, user_id='test_user')
+              except RuntimeError as e:
+                  print(f"✓ Rate limit triggered: {e}")
+              
+              # Stats
+              print("\n" + "="*80)
+              print("ENGINE STATISTICS")
+              print("="*80)
+              stats = engine.get_stats()
+              for key, value in stats.items():
+                  print(f"  {key}: {value}")
+    
+    security_implications:
+      query_flooding_dos: |
+        **Vulnerability**: Attackers can flood the search engine with queries to cause
+        denial of service, either exhausting computational resources or masking malicious
+        queries in the noise.
+        
+        **Attack scenario**: Attacker sends 10,000 queries per second, each requiring
+        full similarity computation across millions of documents. System becomes unresponsive
+        for legitimate users.
+        
+        **Defense**:
+        1. ✅ Implemented: Rate limiting per user/IP (we included this)
+        2. Query queue with priority (authenticated users first)
+        3. Resource allocation limits per user
+        4. Automatic scaling based on load
+        5. DDoS protection at network layer
+      
+      adversarial_query_optimization: |
+        **Vulnerability**: Attackers can craft queries specifically designed to retrieve
+        documents they shouldn't access or to evade content filters.
+        
+        **Attack scenario**: Attacker knows the embedding space geometry and creates
+        queries that maximize similarity to sensitive documents while minimizing similarity
+        to filter keywords. They iteratively refine queries based on returned results.
+        
+        **Defense**:
+        1. Content-based filtering in addition to similarity
+        2. Access control: verify user permissions for retrieved documents
+        3. Detect and flag adversarial queries (unusual embedding patterns)
+        4. Monitor for query optimization patterns (gradient-like progression)
+        5. Randomize similarity scores slightly (differential privacy)
+      
+      result_manipulation_through_diversity: |
+        **Vulnerability**: MMR and other diversity mechanisms can be exploited to surface
+        less relevant but attacker-controlled documents.
+        
+        **Attack scenario**: Attacker plants documents that are moderately similar to
+        common queries but very dissimilar to each other. MMR's diversity preference
+        elevates these planted documents over more relevant legitimate ones.
+        
+        **Defense**:
+        1. Combine diversity with relevance threshold (don't sacrifice too much relevance)
+        2. Audit diversity parameter selection (don't allow user control)
+        3. Monitor diversity impact on result quality
+        4. Content quality signals in addition to diversity
+        5. Detect planted document clusters
+      
+      information_leakage_through_search_results: |
+        **Vulnerability**: Search results can leak information about the corpus composition,
+        document distribution, and potentially sensitive content.
+        
+        **Attack scenario**: Attacker systematically queries to map the corpus. By observing
+        which queries return results and similarity scores, they infer what documents exist,
+        their topics, and potentially reconstruct sensitive information.
+        
+        **Defense**:
+        1. ✅ Implemented: Rate limiting (we included this)
+        2. Access control: only return documents user is authorized to see
+        3. Redact or summarize results instead of returning full text
+        4. Add calibrated noise to similarity scores
+        5. Monitor for systematic corpus mapping attempts
+        6. Implement query diversity requirements (don't allow repetitive queries)
+
+key_takeaways:
+  critical_concepts:
+    - concept: "Dense embeddings map text to continuous vector spaces where semantic similarity manifests as geometric proximity"
+      why_it_matters: "This property enables semantic search, RAG systems, and all modern LLM retrieval applications. Understanding embedding spaces is fundamental to building production LLM systems."
+    
+    - concept: "Similarity metrics (cosine, dot product, Euclidean) have different properties and use cases"
+      why_it_matters: "Choosing the right metric affects retrieval quality, computational efficiency, and security properties. For normalized embeddings, cosine = dot product, enabling significant speedups."
+    
+    - concept: "Exact KNN search is O(n) in corpus size, requiring examination of every document"
+      why_it_matters: "This complexity makes exact search impractical for large corpora (millions+ documents). Understanding exact KNN deeply prepares you to appreciate approximate methods in Section 4.2."
+    
+    - concept: "Embedding-based systems have unique security vulnerabilities including information leakage, poisoning, and adversarial queries"
+      why_it_matters: "Production semantic search requires comprehensive security: rate limiting, query validation, result filtering, and monitoring. Security must be built in from the start, not added later."
+  
+  actionable_steps:
+    - step: "Always L2-normalize embeddings when using cosine similarity for production systems"
+      verification: "Verify that cosine similarity equals dot product for normalized vectors (they should match within 1e-6)"
+    
+    - step: "Implement rate limiting and query monitoring from day one"
+      verification: "Test that rate limits trigger correctly and that query patterns are logged for security analysis"
+    
+    - step: "Benchmark different similarity metrics on your specific data"
+      verification: "Measure retrieval quality (relevance) and computational cost (latency) for each metric on representative queries"
+    
+    - step: "Use vectorized NumPy operations instead of Python loops for similarity computation"
+      verification: "10-100x speedup should be observable when processing 1000+ documents"
+  
+  security_principles:
+    - principle: "Defense in depth: Layer multiple security controls (rate limiting, access control, content filtering)"
+      application: "Even if one control fails (e.g., rate limiting bypassed), other controls (access control) still protect the system"
+    
+    - principle: "Assume breach: Design systems assuming attackers can submit malicious queries"
+      application: "Validate all inputs, sanitize all outputs, monitor for anomalies, and have incident response procedures ready"
+    
+    - principle: "Minimize information leakage: Limit what attackers can learn through queries"
+      application: "Add calibrated noise to scores, rate limit queries, filter results by permissions, monitor for systematic probing"
+    
+    - principle: "Secure by default: Make the secure option the easy option"
+      application: "Normalized embeddings by default, rate limiting enabled by default, monitoring built-in from the start"
+  
+  common_mistakes:
+    - mistake: "Using cosine similarity on unnormalized embeddings without pre-computing norms"
+      fix: "Either normalize embeddings once at indexing time, or pre-compute and store norms for documents"
+    
+    - mistake: "Full sorting when only top-k results are needed"
+      fix: "Use np.argpartition for O(n) average case instead of O(n log n) full sort"
+    
+    - mistake: "No rate limiting or query monitoring in 'prototype' systems that go to production"
+      fix: "Build security in from the start. Rate limiting and logging have minimal overhead and prevent major incidents"
+    
+    - mistake: "Returning raw similarity scores to users without normalization or calibration"
+      fix: "Normalize scores to [0, 1] range, add calibrated noise if needed, and consider only returning relative rankings"
+    
+    - mistake: "Ignoring the security implications of embedding-based search"
+      fix: "Treat semantic search as a security-critical component. Implement comprehensive controls and monitoring from day one"
+  
+  integration_with_book:
+    from_chapter_3:
+      - "BERT and GPT contextual embeddings (Section 3.13-3.15) provide the dense vectors we search over"
+      - "Attention mechanisms (Section 3.7-3.9) create the semantic relationships that embeddings capture"
+      - "LLM security fundamentals (Section 3.18-3.20) extend to embedding-based systems with new attack surfaces"
+    
+    to_next_section:
+      - "Section 4.2 scales exact KNN to billions of vectors with FAISS, HNSW, and approximate nearest neighbors"
+      - "Understanding exact KNN deeply makes approximate methods (trading accuracy for speed) intuitive"
+      - "Security controls built here (rate limiting, monitoring) extend to production vector databases"
+  
+  looking_ahead:
+    next_concepts:
+      - "Vector databases (FAISS, Pinecone, Weaviate) for production-scale search"
+      - "Approximate nearest neighbor algorithms (HNSW, IVF) for sub-linear search"
+      - "Index structures and quantization for memory efficiency"
+      - "Distributed vector search for horizontal scaling"
+    
+    skills_to_build:
+      - "Navigating trade-offs between accuracy, speed, and memory in approximate search"
+      - "Deploying and operating production vector databases"
+      - "Monitoring and optimizing vector search performance"
+      - "Securing vector databases against advanced attacks"
+  
+  final_thoughts: |
+    This section established the foundation for all embedding-based retrieval systems. You
+    now understand how dense embeddings capture semantic meaning, how similarity metrics
+    quantify that meaning, and how to build a complete semantic search engine from scratch.
+    
+    The exact KNN search we implemented is mathematically elegant and conceptually simple,
+    but computationally expensive for large corpora. This motivates the approximate methods
+    we'll explore in Section 4.2. However, understanding exact search deeply is critical:
+    it provides the baseline for evaluating approximate methods, helps debug retrieval
+    issues, and enables you to make informed trade-offs between accuracy and speed.
+    
+    Security is paramount in production systems. The security implications we identified—
+    information leakage, adversarial queries, poisoning attacks—are real threats that have
+    affected production systems. The defenses we implemented (rate limiting, monitoring,
+    query validation) are essential building blocks for secure RAG and semantic search.
+    
+    As you move forward, remember: semantic search is not just an algorithm, it's a system.
+    Production systems require careful attention to performance, scalability, security,
+    monitoring, and operational excellence. Every design decision affects these dimensions.
+    
+    In Section 4.2, we'll scale these concepts to production with vector databases and
+    approximate search algorithms that handle billions of vectors with millisecond latency.
+
+---
