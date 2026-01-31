@@ -1,0 +1,2003 @@
+# section_04_05_advanced_prompting_in_context_learning.yaml
+
+---
+document_info:
+  title: "Advanced Prompt Engineering and In-Context Learning"
+  book: "AI Security Mastery: From ML Fundamentals to Production Detection Systems"
+  chapter: 4
+  section: 5
+  part: 1
+  author: "Raghav Dinesh"
+  github: "https://github.com/raghavpoonia/ai-security-mastery"
+  license: "MIT"
+  created: "2026-01-27"
+  version: "1.0"
+  description: |
+    Advanced prompting techniques that dramatically improve RAG and LLM system quality.
+    Covers few-shot learning with demonstration selection, chain-of-thought (CoT)
+    prompting for reasoning elicitation, self-consistency for reliability, ReAct
+    (Reasoning + Acting) pattern, and automatic prompt optimization. Implements all
+    techniques from scratch with comprehensive security analysis. Production-ready
+    patterns for building reliable, high-quality LLM applications.
+  estimated_pages: 7
+  tags:
+    - prompt-engineering
+    - few-shot-learning
+    - chain-of-thought
+    - self-consistency
+    - react
+    - prompt-optimization
+    - in-context-learning
+
+section_overview:
+  title: "Advanced Prompt Engineering and In-Context Learning"
+  number: "4.5"
+  
+  purpose: |
+    Sections 4.1-4.4 built complete RAG systems: retrieval infrastructure, document
+    processing, and the RAG pipeline itself. But raw RAG—simply appending retrieved
+    documents to a query—often produces mediocre results. Advanced prompting techniques
+    transform good RAG into great RAG by teaching the LLM how to reason, providing
+    examples, and structuring its thinking process.
+    
+    In-context learning is the LLM's superpower: given examples in the prompt, it learns
+    patterns without any parameter updates. Few-shot prompting provides demonstrations
+    of desired behavior. Chain-of-thought prompting elicits step-by-step reasoning.
+    Self-consistency improves reliability through majority voting. ReAct combines
+    reasoning and acting for complex tasks.
+    
+    These techniques aren't just academic curiosities—they're production-critical. GPT-4's
+    impressive capabilities come largely from sophisticated prompting, not just model size.
+    Understanding and mastering advanced prompting enables building LLM applications that
+    are accurate, reliable, and robust.
+    
+    Security is paramount: advanced prompting introduces new attack surfaces. Demonstration
+    poisoning, reasoning manipulation, and consistency attacks can all compromise system
+    integrity. We analyze threats comprehensively and implement secure prompting patterns.
+  
+  learning_objectives:
+    conceptual:
+      - "Understand in-context learning and how LLMs learn from demonstrations"
+      - "Grasp chain-of-thought prompting and its impact on reasoning quality"
+      - "Comprehend self-consistency and ensemble techniques for reliability"
+      - "Understand ReAct pattern and its application to agentic workflows"
+    
+    practical:
+      - "Implement few-shot prompting with intelligent example selection"
+      - "Build chain-of-thought prompters with reasoning extraction"
+      - "Deploy self-consistency with majority voting and aggregation"
+      - "Create ReAct agents with interleaved reasoning and acting"
+    
+    security_focused:
+      - "Identify demonstration poisoning attacks and implement defenses"
+      - "Detect reasoning manipulation and validate thought chains"
+      - "Prevent consistency attacks through diversity enforcement"
+      - "Secure ReAct loops against observation injection"
+  
+  prerequisites:
+    knowledge:
+      - "Section 4.4: RAG architecture and prompt construction"
+      - "Chapter 3: LLM architectures (GPT, T5) and generation"
+      - "Chapter 3: LLM security (prompt injection, jailbreaking)"
+      - "Understanding of few-shot learning concepts"
+    
+    skills:
+      - "Prompt engineering and template design"
+      - "Working with LLM APIs (OpenAI, Anthropic, or local models)"
+      - "Understanding of reasoning and logical inference"
+      - "Text parsing and structured output extraction"
+  
+  key_transitions:
+    from_section_4_4: |
+      Section 4.4 built complete RAG systems: retrieve documents, augment prompts, generate
+      answers. But basic RAG prompts are simple: "Given this context, answer this question."
+      This works for straightforward queries but struggles with complex reasoning, multi-step
+      problems, or tasks requiring careful thought.
+      
+      Section 4.5 advances RAG with sophisticated prompting. Few-shot learning teaches the
+      LLM by example. Chain-of-thought prompting structures reasoning. Self-consistency
+      improves reliability. These techniques transform RAG from "text retrieval + generation"
+      to "guided reasoning over retrieved knowledge."
+    
+    to_next_section: |
+      Section 4.5 covers prompting techniques that work with pre-trained models. Section 4.6
+      explores fine-tuning (LoRA, QLoRA) as an alternative approach. The key question: when
+      to improve performance through better prompting vs when to fine-tune model parameters?
+      Understanding both approaches enables making informed architectural decisions.
+
+topics:
+  - topic_number: 1
+    title: "Few-Shot Learning and Demonstration Selection"
+    
+    overview: |
+      Few-shot learning is the foundation of in-context learning: provide the LLM with a
+      few examples (demonstrations) of the task, and it learns to perform similar tasks
+      without any parameter updates. This is remarkably powerful—GPT-3 showed that with
+      just 3-5 examples, LLMs can learn complex patterns, adapt to new formats, and
+      generalize to novel inputs.
+      
+      But not all demonstrations are equal. Example quality matters enormously. Good
+      demonstrations are clear, diverse, representative, and properly formatted. Poor
+      demonstrations confuse the model or bias it toward wrong patterns. Demonstration
+      selection—choosing which examples to include—is a critical but often overlooked
+      aspect of prompt engineering.
+      
+      We explore few-shot prompting comprehensively: formatting patterns, demonstration
+      selection algorithms (similarity-based, diversity-aware), ordering strategies, and
+      dynamic example selection based on query characteristics. Every technique is
+      implemented and evaluated for effectiveness.
+    
+    content:
+      few_shot_fundamentals:
+        zero_shot_vs_few_shot: |
+          Comparison of prompting approaches:
+          
+          **Zero-shot**: No examples, just instruction
+```
+          Classify sentiment: "This movie was terrible!"
+          Sentiment:
+```
+          - Relies entirely on model's pre-training
+          - Works for common tasks
+          - Fails on novel/complex tasks
+          
+          **Few-shot**: Include demonstrations
+```
+          Classify sentiment:
+          
+          Text: "I loved this movie!"
+          Sentiment: Positive
+          
+          Text: "Worst film ever."
+          Sentiment: Negative
+          
+          Text: "This movie was terrible!"
+          Sentiment:
+```
+          - Teaches task through examples
+          - Dramatically improves performance
+          - Works for novel tasks
+          
+          Performance improvement: Often 20-50% accuracy gain with 3-5 examples
+        
+        demonstration_structure: |
+          Anatomy of good demonstrations:
+          
+          1. **Input-output pairs**: Clear mapping
+```
+             Input: "The cat sat on the mat."
+             Output: {"subject": "cat", "verb": "sat", "location": "mat"}
+```
+          
+          2. **Consistent formatting**: Same pattern for all examples
+             - Maintains format across demonstrations
+             - Makes pattern obvious to LLM
+          
+          3. **Diverse examples**: Cover different patterns
+             - Positive and negative cases
+             - Edge cases and typical cases
+             - Different phrasings and structures
+          
+          4. **Clear delimiters**: Separate examples clearly
+```
+             Example 1:
+             [content]
+             
+             Example 2:
+             [content]
+             
+             Your turn:
+             [query]
+```
+        
+        how_many_examples: |
+          Optimal demonstration count:
+          
+          **Too few (0-1)**:
+          - Insufficient pattern learning
+          - High variance in quality
+          - Model uncertain about format
+          
+          **Sweet spot (3-5)**:
+          - Establishes clear pattern
+          - Provides diversity
+          - Fits in context window
+          - Most common in production
+          
+          **Many (10-20)**:
+          - Better pattern learning
+          - More comprehensive coverage
+          - Consumes context window
+          - Expensive (more tokens)
+          
+          **Too many (50+)**:
+          - Diminishing returns
+          - Context window constraints
+          - Higher cost, latency
+          
+          Rule of thumb: Start with 3, add more if quality improves significantly.
+      
+      demonstration_selection:
+        random_selection: |
+          Baseline: Random demonstrations from pool
+          
+          Pros:
+          - Simple, no computation
+          - Unbiased
+          - Good if examples are homogeneous
+          
+          Cons:
+          - May select redundant examples
+          - Might miss relevant patterns
+          - Quality variance
+          
+          Use when: Pool is small, well-curated, diverse
+        
+        similarity_based_selection: |
+          Select demonstrations most similar to query:
+          
+          Algorithm:
+          1. Embed all demonstrations and query
+          2. Compute similarity (cosine) between query and each demo
+          3. Select top-k most similar
+          4. Include in prompt
+          
+          Pros:
+          - Relevant examples for query
+          - Better in-distribution performance
+          - Adapts to query characteristics
+          
+          Cons:
+          - May select redundant/similar examples
+          - Computational overhead (embedding)
+          - Might miss diverse patterns
+          
+          Enhancement: Use MMR (Maximal Marginal Relevance) for diversity
+        
+        diversity_based_selection: |
+          Select diverse demonstrations covering different patterns:
+          
+          Algorithm:
+          1. Cluster demonstrations (k-means on embeddings)
+          2. Select one example from each cluster
+          3. Ensures coverage of different patterns
+          
+          Pros:
+          - Comprehensive coverage
+          - Reduces redundancy
+          - Better generalization
+          
+          Cons:
+          - May include less relevant examples
+          - Requires clustering (slower)
+          - Need good cluster count
+        
+        hybrid_selection: |
+          Combine similarity and diversity:
+          
+          Algorithm:
+          1. Select top-2k most similar to query (relevance)
+          2. From these, select k diverse examples (diversity)
+          3. Balance relevance and coverage
+          
+          Best of both worlds:
+          - Relevant examples
+          - Diverse patterns
+          - Adapts to query
+          
+          Production standard: Most systems use this approach.
+      
+      ordering_effects:
+        position_matters: |
+          Demonstration order affects LLM behavior:
+          
+          Findings from research:
+          - **Recency bias**: Last examples have more influence
+          - **Primacy effect**: First examples set initial pattern
+          - **Middle examples**: Less influential
+          
+          Implications:
+          - Put most important examples last
+          - Put format examples first
+          - Avoid putting edge cases in middle
+        
+        ordering_strategies: |
+          1. **Easiest to hardest**: Simple → Complex
+             - Builds understanding gradually
+             - Good for learning tasks
+          
+          2. **Most similar last**: Query-like example last
+             - Leverages recency bias
+             - Example most similar to query has highest influence
+          
+          3. **Positive then negative**: Success cases first
+             - Establishes positive pattern
+             - Corrections come after
+          
+          4. **Structured progression**: By category/type
+             - Groups related patterns
+             - Clear organization
+          
+          Recommendation: Experiment with your data, measure impact.
+    
+    implementation:
+      few_shot_prompter:
+        language: python
+        code: |
+          """
+          Few-shot prompting with intelligent demonstration selection.
+          Implements similarity-based, diversity-based, and hybrid selection.
+          """
+          
+          import numpy as np
+          from typing import List, Dict, Tuple, Optional
+          from dataclasses import dataclass
+          from sklearn.cluster import KMeans
+          
+          @dataclass
+          class Demonstration:
+              """Single demonstration (example)."""
+              input: str
+              output: str
+              metadata: Dict = None
+              embedding: Optional[np.ndarray] = None
+          
+          
+          class FewShotPrompter:
+              """
+              Few-shot prompt constructor with intelligent example selection.
+              
+              Supports multiple selection strategies:
+              - Random: Baseline
+              - Similarity: Most relevant to query
+              - Diversity: Cover different patterns
+              - Hybrid: Balance relevance and diversity
+              """
+              
+              def __init__(self, embedding_function=None):
+                  """
+                  Initialize prompter.
+                  
+                  Args:
+                      embedding_function: Function to embed text (for similarity)
+                  """
+                  self.embedding_function = embedding_function
+                  self.demonstrations: List[Demonstration] = []
+              
+              def add_demonstration(self, input_text: str, output_text: str, metadata: Dict = None):
+                  """
+                  Add demonstration to pool.
+                  
+                  Args:
+                      input_text: Example input
+                      output_text: Example output
+                      metadata: Optional metadata
+                  """
+                  demo = Demonstration(input=input_text, output=output_text, metadata=metadata or {})
+                  
+                  # Compute embedding if function provided
+                  if self.embedding_function:
+                      demo.embedding = self.embedding_function(input_text)
+                  
+                  self.demonstrations.append(demo)
+              
+              def add_demonstrations_from_list(self, examples: List[Tuple[str, str]]):
+                  """
+                  Add multiple demonstrations.
+                  
+                  Args:
+                      examples: List of (input, output) tuples
+                  """
+                  for input_text, output_text in examples:
+                      self.add_demonstration(input_text, output_text)
+              
+              def select_random(self, k: int = 3) -> List[Demonstration]:
+                  """
+                  Random demonstration selection.
+                  
+                  Args:
+                      k: Number of demonstrations to select
+                  
+                  Returns:
+                      List of selected demonstrations
+                  """
+                  if k >= len(self.demonstrations):
+                      return self.demonstrations.copy()
+                  
+                  indices = np.random.choice(len(self.demonstrations), size=k, replace=False)
+                  return [self.demonstrations[i] for i in indices]
+              
+              def select_by_similarity(self, query: str, k: int = 3) -> List[Demonstration]:
+                  """
+                  Select demonstrations most similar to query.
+                  
+                  Args:
+                      query: Query text
+                      k: Number of demonstrations to select
+                  
+                  Returns:
+                      List of selected demonstrations (sorted by similarity)
+                  """
+                  if not self.embedding_function:
+                      raise ValueError("Embedding function required for similarity selection")
+                  
+                  # Embed query
+                  query_embedding = self.embedding_function(query)
+                  
+                  # Compute similarities
+                  similarities = []
+                  for demo in self.demonstrations:
+                      if demo.embedding is None:
+                          demo.embedding = self.embedding_function(demo.input)
+                      
+                      sim = np.dot(query_embedding, demo.embedding)
+                      similarities.append(sim)
+                  
+                  # Select top-k
+                  top_k_indices = np.argsort(similarities)[-k:][::-1]
+                  return [self.demonstrations[i] for i in top_k_indices]
+              
+              def select_diverse(self, k: int = 3) -> List[Demonstration]:
+                  """
+                  Select diverse demonstrations using clustering.
+                  
+                  Args:
+                      k: Number of demonstrations to select
+                  
+                  Returns:
+                      List of selected demonstrations
+                  """
+                  if not self.embedding_function:
+                      raise ValueError("Embedding function required for diversity selection")
+                  
+                  if k >= len(self.demonstrations):
+                      return self.demonstrations.copy()
+                  
+                  # Ensure all embeddings computed
+                  embeddings = []
+                  for demo in self.demonstrations:
+                      if demo.embedding is None:
+                          demo.embedding = self.embedding_function(demo.input)
+                      embeddings.append(demo.embedding)
+                  
+                  embeddings = np.array(embeddings)
+                  
+                  # Cluster
+                  kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+                  kmeans.fit(embeddings)
+                  
+                  # Select one from each cluster (closest to centroid)
+                  selected = []
+                  for cluster_id in range(k):
+                      cluster_indices = np.where(kmeans.labels_ == cluster_id)[0]
+                      
+                      if len(cluster_indices) == 0:
+                          continue
+                      
+                      # Find closest to centroid
+                      centroid = kmeans.cluster_centers_[cluster_id]
+                      distances = [np.linalg.norm(embeddings[i] - centroid) for i in cluster_indices]
+                      closest_idx = cluster_indices[np.argmin(distances)]
+                      
+                      selected.append(self.demonstrations[closest_idx])
+                  
+                  return selected
+              
+              def select_hybrid(self, query: str, k: int = 3, similarity_factor: float = 2.0) -> List[Demonstration]:
+                  """
+                  Hybrid selection: similarity + diversity.
+                  
+                  Algorithm:
+                  1. Select top-(k * similarity_factor) by similarity
+                  2. From these, select k diverse examples
+                  
+                  Args:
+                      query: Query text
+                      k: Number of demonstrations to select
+                      similarity_factor: How many candidates to consider (2.0 = 2k candidates)
+                  
+                  Returns:
+                      List of selected demonstrations
+                  """
+                  if not self.embedding_function:
+                      raise ValueError("Embedding function required for hybrid selection")
+                  
+                  # Step 1: Get similar candidates
+                  n_candidates = int(k * similarity_factor)
+                  similar_demos = self.select_by_similarity(query, k=n_candidates)
+                  
+                  if len(similar_demos) <= k:
+                      return similar_demos
+                  
+                  # Step 2: Select diverse from candidates
+                  # Temporarily replace demonstration pool
+                  original_demos = self.demonstrations
+                  self.demonstrations = similar_demos
+                  
+                  diverse_demos = self.select_diverse(k=k)
+                  
+                  # Restore original pool
+                  self.demonstrations = original_demos
+                  
+                  return diverse_demos
+              
+              def construct_prompt(self,
+                                  query: str,
+                                  instruction: str = "",
+                                  k: int = 3,
+                                  selection_strategy: str = 'hybrid') -> str:
+                  """
+                  Construct few-shot prompt.
+                  
+                  Args:
+                      query: Query to answer
+                      instruction: Task instruction
+                      k: Number of demonstrations
+                      selection_strategy: 'random', 'similarity', 'diversity', 'hybrid'
+                  
+                  Returns:
+                      Complete prompt with demonstrations
+                  """
+                  # Select demonstrations
+                  if selection_strategy == 'random':
+                      demos = self.select_random(k)
+                  elif selection_strategy == 'similarity':
+                      demos = self.select_by_similarity(query, k)
+                  elif selection_strategy == 'diversity':
+                      demos = self.select_diverse(k)
+                  elif selection_strategy == 'hybrid':
+                      demos = self.select_hybrid(query, k)
+                  else:
+                      raise ValueError(f"Unknown selection strategy: {selection_strategy}")
+                  
+                  # Build prompt
+                  parts = []
+                  
+                  if instruction:
+                      parts.append(instruction)
+                      parts.append("")
+                  
+                  # Add demonstrations
+                  for i, demo in enumerate(demos, 1):
+                      parts.append(f"Example {i}:")
+                      parts.append(f"Input: {demo.input}")
+                      parts.append(f"Output: {demo.output}")
+                      parts.append("")
+                  
+                  # Add query
+                  parts.append("Your turn:")
+                  parts.append(f"Input: {query}")
+                  parts.append("Output:")
+                  
+                  return "\n".join(parts)
+          
+          
+          def demonstrate_few_shot():
+              """Demonstrate few-shot prompting with different strategies."""
+              print("\n" + "="*80)
+              print("FEW-SHOT PROMPTING DEMONSTRATION")
+              print("="*80)
+              
+              # Simple embedding function (for demo - use real embeddings in production)
+              def simple_embed(text: str) -> np.ndarray:
+                  """Create simple embedding based on word presence."""
+                  words = set(text.lower().split())
+                  vocab = ['sentiment', 'classify', 'positive', 'negative', 'movie', 'good', 'bad', 
+                          'great', 'terrible', 'love', 'hate']
+                  
+                  embedding = np.array([1.0 if word in words else 0.0 for word in vocab])
+                  # Add some noise for diversity
+                  embedding += np.random.normal(0, 0.1, len(vocab))
+                  # Normalize
+                  norm = np.linalg.norm(embedding)
+                  return embedding / (norm + 1e-8)
+              
+              # Initialize prompter
+              prompter = FewShotPrompter(embedding_function=simple_embed)
+              
+              # Add demonstrations (sentiment classification task)
+              examples = [
+                  ("I absolutely loved this movie! Best film I've seen in years.", "Positive"),
+                  ("Terrible movie, waste of time and money.", "Negative"),
+                  ("The acting was superb and the story was engaging.", "Positive"),
+                  ("Boring plot, poor acting, wouldn't recommend.", "Negative"),
+                  ("A masterpiece of cinema!", "Positive"),
+                  ("Worst film ever made.", "Negative"),
+                  ("Great performances by the entire cast.", "Positive"),
+                  ("Disappointing and forgettable.", "Negative"),
+              ]
+              
+              prompter.add_demonstrations_from_list(examples)
+              
+              # Test query
+              query = "This movie was surprisingly good!"
+              instruction = "Classify the sentiment of movie reviews as Positive or Negative."
+              
+              # Test different strategies
+              strategies = ['random', 'similarity', 'diversity', 'hybrid']
+              
+              for strategy in strategies:
+                  print(f"\n{'-'*80}")
+                  print(f"Strategy: {strategy.upper()}")
+                  print(f"{'-'*80}")
+                  
+                  prompt = prompter.construct_prompt(
+                      query=query,
+                      instruction=instruction,
+                      k=3,
+                      selection_strategy=strategy
+                  )
+                  
+                  print(prompt)
+                  print(f"\nPrompt length: {len(prompt)} characters")
+          
+          
+          if __name__ == "__main__":
+              demonstrate_few_shot()
+    
+    security_implications:
+      demonstration_poisoning: |
+        **Vulnerability**: Attackers can inject malicious demonstrations that teach the
+        LLM harmful patterns or manipulate its behavior.
+        
+        **Attack scenario**: In a sentiment classification system, attacker adds demonstrations:
+```
+        Input: "Product X is great!"
+        Output: "Negative"
+        
+        Input: "Product Y is terrible!"
+        Output: "Positive"
+```
+        
+        These poisoned demonstrations teach the model to invert sentiment judgments,
+        causing systematic misclassification that could manipulate reviews, ratings, or
+        recommendations.
+        
+        **Defense**:
+        1. Curate demonstration pool: Only use trusted, validated examples
+        2. Human review: Verify all demonstrations before deployment
+        3. Demonstration quality checks: Consistency, format validation
+        4. Access control: Restrict who can add demonstrations
+        5. Audit logging: Track demonstration changes
+        6. Anomaly detection: Monitor for unusual demonstration patterns
+        7. Separate pools: Isolate user-contributed from system demonstrations
+      
+      adversarial_example_selection: |
+        **Vulnerability**: Attackers who understand the selection algorithm can craft
+        queries that retrieve specific malicious demonstrations.
+        
+        **Attack scenario**: Similarity-based selection retrieves demonstrations closest
+        to query. Attacker analyzes the embedding space and crafts queries that maximize
+        similarity to planted malicious demonstrations.
+        
+        For example, if malicious demo contains "admin credentials", attacker crafts query
+        with similar embedding to ensure this demo is selected and included in context.
+        
+        **Defense**:
+        1. Validate selected demonstrations: Check for suspicious patterns
+        2. Diversity enforcement: Don't rely solely on similarity
+        3. Randomization: Add noise to selection process
+        4. Content filtering: Scan demonstrations for sensitive content
+        5. Selection monitoring: Detect unusual selection patterns
+        6. Demonstration reputation: Weight trusted sources higher
+      
+      ordering_manipulation: |
+        **Vulnerability**: Demonstration order affects behavior (recency bias). Attackers
+        can exploit this by controlling which examples appear last.
+        
+        **Attack scenario**: Attacker knows system orders by similarity with most similar
+        last. They craft a malicious demonstration that's always most similar to target
+        queries, ensuring it appears last (most influential position).
+        
+        **Defense**:
+        1. Random ordering: Randomize order within selected set
+        2. Fixed ordering: Use predetermined ordering strategy
+        3. Order validation: Ensure no systematic bias
+        4. Multiple orderings: Try different orders, check consistency
+        5. Order monitoring: Detect unusual ordering patterns
+      
+      demonstration_leakage: |
+        **Vulnerability**: Demonstrations may contain sensitive information that leaks
+        through the prompt or is reproduced in outputs.
+        
+        **Attack scenario**: Demonstration contains:
+```
+        Input: "Reset password for user@company.com"
+        Output: "Password reset to: TempPass123"
+```
+        
+        This demonstration teaches pattern but also leaks password reset mechanism and
+        temporary password format, which attackers can exploit.
+        
+        **Defense**:
+        1. Sanitize demonstrations: Remove sensitive data (emails, passwords, PII)
+        2. Use synthetic examples: Create artificial demonstrations, not real data
+        3. Anonymization: Replace real entities with placeholders
+        4. Review process: Human review for sensitive content
+        5. Access control: Limit who sees demonstration pool
+        6. Encryption: Encrypt stored demonstrations
+
+  - topic_number: 2
+    title: "Chain-of-Thought Prompting and Reasoning Elicitation"
+    
+    overview: |
+      Chain-of-Thought (CoT) prompting is one of the most impactful advances in prompt
+      engineering. By asking the LLM to show its reasoning step-by-step before answering,
+      CoT dramatically improves performance on complex tasks requiring multi-step reasoning,
+      arithmetic, logical inference, and problem decomposition.
+      
+      The key insight: LLMs can reason better when they "think out loud." Just as humans
+      solve complex problems by breaking them down into steps, LLMs benefit from generating
+      intermediate reasoning steps. CoT prompting makes these reasoning chains explicit
+      and visible.
+      
+      We explore multiple CoT variants: zero-shot CoT ("Let's think step by step"), few-shot
+      CoT with reasoning demonstrations, and structured CoT with explicit reasoning formats.
+      Every approach is implemented, evaluated, and secured against reasoning manipulation
+      attacks.
+    
+    content:
+      chain_of_thought_fundamentals:
+        what_is_cot: |
+          Chain-of-Thought prompting structure:
+          
+          **Standard prompting**:
+```
+          Q: A store has 15 apples. They sell 8. How many remain?
+          A: 7
+```
+          - Direct answer
+          - No reasoning shown
+          - Black box
+          
+          **Chain-of-Thought prompting**:
+```
+          Q: A store has 15 apples. They sell 8. How many remain?
+          A: Let me think through this step by step:
+          1. Initial apples: 15
+          2. Apples sold: 8
+          3. Remaining: 15 - 8 = 7
+          Therefore, 7 apples remain.
+```
+          - Explicit reasoning
+          - Step-by-step breakdown
+          - Traceable logic
+          
+          Performance improvement: 20-50%+ on reasoning tasks
+        
+        why_cot_works: |
+          Theoretical explanations:
+          
+          1. **Sequential processing**: LLMs process tokens sequentially
+             - Reasoning steps create intermediate representations
+             - Each step builds on previous (autoregressive)
+             - More tokens = more computation
+          
+          2. **Problem decomposition**: Complex → Simple steps
+             - Large problem broken into manageable pieces
+             - Each piece easier to solve
+             - Compose partial solutions
+          
+          3. **Error correction**: Intermediate steps enable self-correction
+             - Model can "catch" errors mid-reasoning
+             - Each step is checkable
+             - Mistakes less likely to propagate
+          
+          4. **Activation of reasoning circuits**: Step-by-step triggers reasoning
+             - Training data includes reasoning chains
+             - CoT activates learned reasoning patterns
+             - Aligns with pre-training objective
+        
+        when_cot_helps: |
+          Tasks where CoT improves performance:
+          
+          ✅ **Arithmetic and math**: Multi-step calculations
+          ✅ **Logical reasoning**: Syllogisms, deduction
+          ✅ **Commonsense reasoning**: "What happens next?"
+          ✅ **Problem solving**: Strategy games, puzzles
+          ✅ **Code generation**: Complex algorithms
+          ✅ **Fact verification**: Multi-hop reasoning
+          
+          Tasks where CoT helps less:
+          ❌ **Simple recall**: "What is the capital of France?"
+          ❌ **Classification**: Single-step categorization
+          ❌ **Pattern matching**: Direct similarity
+          ❌ **Very long texts**: Token budget constraints
+      
+      cot_variants:
+        zero_shot_cot: |
+          Simplest: Just add "Let's think step by step"
+```
+          Q: [Question]
+          A: Let's think step by step:
+```
+          
+          Remarkably effective:
+          - No demonstrations needed
+          - Works across tasks
+          - Simple to implement
+          
+          Discovery: Wei et al. (2022) - adding this phrase improves reasoning
+          
+          Mechanism: Triggers reasoning mode without examples
+        
+        few_shot_cot: |
+          Provide demonstrations with reasoning chains:
+```
+          Q: Roger has 5 tennis balls. He buys 2 more. How many does he have?
+          A: Let's think:
+          - Initial: 5 balls
+          - Bought: 2 balls
+          - Total: 5 + 2 = 7
+          Therefore, 7 balls.
+          
+          Q: [Your question]
+          A: Let's think:
+```
+          
+          More effective than zero-shot:
+          - Shows reasoning format
+          - Demonstrates step structure
+          - Task-specific patterns
+          
+          Requires: Good reasoning demonstrations (human-written or model-generated)
+        
+        structured_cot: |
+          Use explicit structure for reasoning:
+```
+          Question: [Q]
+          
+          Analysis:
+          - Key information: [extract relevant facts]
+          - Required operations: [what needs to be done]
+          - Step-by-step solution:
+            1. [First step]
+            2. [Second step]
+            3. [Third step]
+          
+          Conclusion: [Final answer]
+```
+          
+          Benefits:
+          - Forces comprehensive thinking
+          - Ensures all aspects covered
+          - Easier to verify/debug
+          - More reliable
+        
+        self_ask_decomposition: |
+          Decompose complex questions into sub-questions:
+```
+          Main Question: [Complex multi-part question]
+          
+          Sub-questions:
+          Q1: [Simpler question 1]
+          A1: [Answer 1]
+          
+          Q2: [Simpler question 2]  
+          A2: [Answer 2]
+          
+          Q3: [Simpler question 3]
+          A3: [Answer 3]
+          
+          Final Answer: [Synthesize from sub-answers]
+```
+          
+          Powerful for:
+          - Multi-hop reasoning
+          - Complex questions
+          - Information gathering
+          - RAG systems (each sub-question → retrieval)
+      
+      reasoning_verification:
+        extracting_reasoning: |
+          Parse reasoning chains from outputs:
+          
+          1. Identify reasoning markers:
+             - "Let's think", "Step 1", "Therefore"
+             - Numbered lists, bullet points
+             - Logical connectives ("because", "so")
+          
+          2. Extract steps:
+             - Split on markers
+             - Parse each step
+             - Build reasoning graph
+          
+          3. Verify consistency:
+             - Check logical flow
+             - Validate calculations
+             - Ensure conclusion follows
+        
+        reasoning_quality_metrics: |
+          Evaluate reasoning chain quality:
+          
+          1. **Completeness**: All steps present?
+          2. **Correctness**: Each step valid?
+          3. **Relevance**: Steps address question?
+          4. **Consistency**: No contradictions?
+          5. **Conclusion**: Answer follows from reasoning?
+          
+          Red flags:
+          - Skipped steps
+          - Non-sequiturs
+          - Arithmetic errors
+          - Unsupported conclusions
+    
+    implementation:
+      cot_prompter:
+        language: python
+        code: |
+          """
+          Chain-of-Thought prompting implementation.
+          Supports zero-shot, few-shot, and structured CoT with reasoning extraction.
+          """
+          
+          import re
+          from typing import List, Dict, Optional, Tuple
+          from dataclasses import dataclass
+          
+          @dataclass
+          class ReasoningStep:
+              """Single step in reasoning chain."""
+              step_number: int
+              content: str
+              step_type: str = "reasoning"  # reasoning, calculation, conclusion
+          
+          @dataclass
+          class ReasoningChain:
+              """Complete reasoning chain."""
+              steps: List[ReasoningStep]
+              conclusion: str
+              question: str
+          
+          
+          class ChainOfThoughtPrompter:
+              """
+              Chain-of-Thought prompt constructor.
+              
+              Supports multiple CoT styles:
+              - Zero-shot: "Let's think step by step"
+              - Few-shot: With reasoning demonstrations
+              - Structured: Explicit reasoning format
+              """
+              
+              def __init__(self):
+                  """Initialize CoT prompter."""
+                  self.reasoning_examples: List[Tuple[str, str]] = []
+              
+              def add_reasoning_example(self, question: str, reasoning: str):
+                  """
+                  Add reasoning demonstration.
+                  
+                  Args:
+                      question: Example question
+                      reasoning: Step-by-step reasoning with answer
+                  """
+                  self.reasoning_examples.append((question, reasoning))
+              
+              def zero_shot_cot(self, question: str, instruction: str = "") -> str:
+                  """
+                  Zero-shot CoT: Just add "Let's think step by step"
+                  
+                  Args:
+                      question: Question to answer
+                      instruction: Optional task instruction
+                  
+                  Returns:
+                      Prompt with zero-shot CoT trigger
+                  """
+                  parts = []
+                  
+                  if instruction:
+                      parts.append(instruction)
+                      parts.append("")
+                  
+                  parts.append(f"Q: {question}")
+                  parts.append("A: Let's think step by step:")
+                  
+                  return "\n".join(parts)
+              
+              def few_shot_cot(self, 
+                              question: str, 
+                              instruction: str = "",
+                              n_examples: int = 3) -> str:
+                  """
+                  Few-shot CoT with reasoning demonstrations.
+                  
+                  Args:
+                      question: Question to answer
+                      instruction: Optional task instruction
+                      n_examples: Number of examples to include
+                  
+                  Returns:
+                      Prompt with CoT demonstrations
+                  """
+                  parts = []
+                  
+                  if instruction:
+                      parts.append(instruction)
+                      parts.append("")
+                  
+                  # Add reasoning examples
+                  examples_to_use = self.reasoning_examples[:n_examples]
+                  
+                  for i, (q, reasoning) in enumerate(examples_to_use, 1):
+                      parts.append(f"Example {i}:")
+                      parts.append(f"Q: {q}")
+                      parts.append(f"A: {reasoning}")
+                      parts.append("")
+                  
+                  # Add actual question
+                  parts.append("Your turn:")
+                  parts.append(f"Q: {question}")
+                  parts.append("A: Let's think step by step:")
+                  
+                  return "\n".join(parts)
+              
+              def structured_cot(self, question: str, instruction: str = "") -> str:
+                  """
+                  Structured CoT with explicit reasoning format.
+                  
+                  Args:
+                      question: Question to answer
+                      instruction: Optional task instruction
+                  
+                  Returns:
+                      Prompt with structured reasoning template
+                  """
+                  parts = []
+                  
+                  if instruction:
+                      parts.append(instruction)
+                      parts.append("")
+                  
+                  parts.append(f"Question: {question}")
+                  parts.append("")
+                  parts.append("Please solve this step-by-step using the following structure:")
+                  parts.append("")
+                  parts.append("Analysis:")
+                  parts.append("- Key information:")
+                  parts.append("- Required operations:")
+                  parts.append("")
+                  parts.append("Step-by-step solution:")
+                  parts.append("1.")
+                  parts.append("2.")
+                  parts.append("3.")
+                  parts.append("")
+                  parts.append("Conclusion:")
+                  
+                  return "\n".join(parts)
+              
+              def extract_reasoning_chain(self, response: str, question: str) -> ReasoningChain:
+                  """
+                  Extract reasoning steps from CoT response.
+                  
+                  Args:
+                      response: LLM response with reasoning
+                      question: Original question
+                  
+                  Returns:
+                      ReasoningChain object
+                  """
+                  steps = []
+                  
+                  # Look for numbered steps
+                  numbered_pattern = r'(\d+)\.\s*(.+?)(?=\d+\.|$)'
+                  matches = re.findall(numbered_pattern, response, re.DOTALL)
+                  
+                  if matches:
+                      for step_num, content in matches:
+                          steps.append(ReasoningStep(
+                              step_number=int(step_num),
+                              content=content.strip(),
+                              step_type="reasoning"
+                          ))
+                  else:
+                      # Fall back to line-by-line
+                      lines = [l.strip() for l in response.split('\n') if l.strip()]
+                      for i, line in enumerate(lines, 1):
+                          if line and not line.startswith('Q:') and not line.startswith('A:'):
+                              steps.append(ReasoningStep(
+                                  step_number=i,
+                                  content=line,
+                                  step_type="reasoning"
+                              ))
+                  
+                  # Extract conclusion (usually last step or after "Therefore")
+                  conclusion = ""
+                  if steps:
+                      conclusion = steps[-1].content
+                  
+                  # Look for explicit conclusion markers
+                  conclusion_patterns = [
+                      r'[Tt]herefore[,:]?\s*(.+)',
+                      r'[Cc]onclusion[:]?\s*(.+)',
+                      r'[Ff]inal answer[:]?\s*(.+)',
+                  ]
+                  
+                  for pattern in conclusion_patterns:
+                      match = re.search(pattern, response, re.IGNORECASE)
+                      if match:
+                          conclusion = match.group(1).strip()
+                          break
+                  
+                  return ReasoningChain(
+                      steps=steps,
+                      conclusion=conclusion,
+                      question=question
+                  )
+              
+              def verify_reasoning(self, chain: ReasoningChain) -> Dict[str, any]:
+                  """
+                  Verify reasoning chain quality.
+                  
+                  Args:
+                      chain: ReasoningChain to verify
+                  
+                  Returns:
+                      Dictionary with verification results
+                  """
+                  results = {
+                      'has_steps': len(chain.steps) > 0,
+                      'step_count': len(chain.steps),
+                      'has_conclusion': bool(chain.conclusion),
+                      'complete': len(chain.steps) >= 2 and bool(chain.conclusion),
+                  }
+                  
+                  # Check for logical flow indicators
+                  reasoning_text = ' '.join(step.content for step in chain.steps)
+                  
+                  logical_indicators = ['therefore', 'because', 'so', 'thus', 'hence']
+                  results['has_logical_connectives'] = any(
+                      indicator in reasoning_text.lower() 
+                      for indicator in logical_indicators
+                  )
+                  
+                  # Check for calculations (presence of numbers and operators)
+                  has_numbers = bool(re.search(r'\d+', reasoning_text))
+                  has_operators = bool(re.search(r'[+\-*/=]', reasoning_text))
+                  results['has_calculations'] = has_numbers and has_operators
+                  
+                  # Overall quality score
+                  quality_score = sum([
+                      results['has_steps'],
+                      results['has_conclusion'],
+                      results['has_logical_connectives'],
+                      results['step_count'] >= 3,
+                  ]) / 4
+                  
+                  results['quality_score'] = quality_score
+                  
+                  return results
+          
+          
+          def demonstrate_cot():
+              """Demonstrate Chain-of-Thought prompting."""
+              print("\n" + "="*80)
+              print("CHAIN-OF-THOUGHT PROMPTING DEMONSTRATION")
+              print("="*80)
+              
+              prompter = ChainOfThoughtPrompter()
+              
+              # Add reasoning examples
+              reasoning_examples = [
+                  (
+                      "A store has 15 apples. They sell 8 apples. How many apples remain?",
+                      """Let's think step by step:
+          1. Initial number of apples: 15
+          2. Number of apples sold: 8
+          3. Remaining apples: 15 - 8 = 7
+          Therefore, 7 apples remain."""
+                  ),
+                  (
+                      "If John has 3 times as many books as Mary, and Mary has 4 books, how many books does John have?",
+                      """Let's solve this step by step:
+          1. Mary's books: 4
+          2. John has 3 times Mary's books
+          3. John's books: 3 × 4 = 12
+          Therefore, John has 12 books."""
+                  ),
+              ]
+              
+              for q, r in reasoning_examples:
+                  prompter.add_reasoning_example(q, r)
+              
+              # Test question
+              question = "A bakery makes 24 cupcakes. They sell half in the morning and a quarter in the afternoon. How many cupcakes remain?"
+              
+              # Test different CoT styles
+              print("\n" + "-"*80)
+              print("ZERO-SHOT CoT")
+              print("-"*80)
+              prompt = prompter.zero_shot_cot(question)
+              print(prompt)
+              
+              print("\n" + "-"*80)
+              print("FEW-SHOT CoT")
+              print("-"*80)
+              prompt = prompter.few_shot_cot(question, n_examples=2)
+              print(prompt)
+              
+              print("\n" + "-"*80)
+              print("STRUCTURED CoT")
+              print("-"*80)
+              prompt = prompter.structured_cot(question)
+              print(prompt)
+              
+              # Demonstrate reasoning extraction
+              print("\n" + "-"*80)
+              print("REASONING EXTRACTION")
+              print("-"*80)
+              
+              sample_response = """Let's solve this step by step:
+          1. Initial cupcakes: 24
+          2. Sold in morning (half): 24 / 2 = 12
+          3. Remaining after morning: 24 - 12 = 12
+          4. Sold in afternoon (quarter of original): 24 / 4 = 6
+          5. Final remaining: 12 - 6 = 6
+          Therefore, 6 cupcakes remain."""
+              
+              chain = prompter.extract_reasoning_chain(sample_response, question)
+              
+              print(f"Question: {chain.question}")
+              print(f"\nExtracted {len(chain.steps)} reasoning steps:")
+              for step in chain.steps:
+                  print(f"  {step.step_number}. {step.content}")
+              print(f"\nConclusion: {chain.conclusion}")
+              
+              # Verify reasoning
+              verification = prompter.verify_reasoning(chain)
+              print(f"\nReasoning verification:")
+              for key, value in verification.items():
+                  print(f"  {key}: {value}")
+          
+          
+          if __name__ == "__main__":
+              demonstrate_cot()
+    
+    security_implications:
+      reasoning_manipulation: |
+        **Vulnerability**: Attackers can inject false reasoning steps that lead to
+        incorrect conclusions while appearing logically sound.
+        
+        **Attack scenario**: In a medical diagnosis system with CoT:
+```
+        Symptoms: Fever, cough, fatigue
+        
+        Reasoning:
+        1. Patient has fever and cough
+        2. These are common cold symptoms
+        3. [INJECTED] Common cold always resolves without treatment
+        4. Therefore, no medical intervention needed
+        
+        Conclusion: Patient needs no treatment
+```
+        
+        Step 3 is injected misinformation. While reasoning appears logical, the injected
+        premise is dangerous medical misinformation.
+        
+        **Defense**:
+        1. Verify each reasoning step against knowledge base
+        2. Fact-check premises before accepting conclusions
+        3. Flag reasoning chains with suspicious steps
+        4. Use multiple reasoning paths and compare
+        5. Human review for high-stakes decisions
+        6. Separate reasoning generation from evaluation
+      
+      reasoning_chain_poisoning: |
+        **Vulnerability**: CoT demonstrations can be poisoned to teach incorrect reasoning
+        patterns that systematically produce wrong answers.
+        
+        **Attack scenario**: Attacker adds CoT examples with flawed reasoning:
+```
+        Q: 10 + 5 = ?
+        A: Step 1: We have 10 and 5
+            Step 2: When adding, multiply the first number by 2
+            Step 3: 10 × 2 = 20
+            Step 4: Then add second number: 20 + 5 = 25
+        Therefore, 10 + 5 = 25
+```
+        
+        This poisoned demonstration teaches incorrect arithmetic procedure. Model learns
+        this pattern and applies to other additions.
+        
+        **Defense**:
+        1. Validate all CoT demonstrations for correctness
+        2. Test demonstrations on known correct/incorrect cases
+        3. Human review of reasoning patterns
+        4. Automated verification of arithmetic/logic steps
+        5. Separate trusted demonstrations from user-provided
+        6. Monitor for systematic errors in outputs
+      
+      conclusion_jumping: |
+        **Vulnerability**: Model may skip reasoning steps and jump to conclusion, especially
+        if reasoning is computationally expensive or conclusion is obvious from training.
+        
+        **Attack scenario**: Model outputs:
+```
+        Q: Complex multi-step problem
+        A: Let's think step by step:
+        1. [First step]
+        Therefore, [conclusion]
+```
+        
+        Critical intermediate steps omitted. Conclusion may be wrong but appears supported
+        by superficial reasoning structure.
+        
+        **Defense**:
+        1. Require minimum number of reasoning steps
+        2. Validate reasoning completeness
+        3. Check for logical gaps (missing steps)
+        4. Use structured CoT to force step coverage
+        5. Verify conclusion actually follows from stated steps
+        6. Penalize incomplete reasoning chains
+
+  - topic_number: 3
+    title: "Self-Consistency and Automatic Prompt Optimization"
+    
+    overview: |
+      Single LLM outputs are inherently noisy—same query can produce different answers
+      across runs due to temperature sampling. Self-consistency improves reliability by
+      generating multiple reasoning paths and selecting the most consistent answer through
+      majority voting or other aggregation techniques.
+      
+      Automatic prompt optimization treats prompt engineering as a search problem: given
+      a task and evaluation metrics, algorithmically search for prompts that maximize
+      performance. This moves beyond manual prompt crafting to systematic optimization.
+      
+      These techniques are production-critical for high-stakes applications. Self-consistency
+      reduces variance and improves accuracy. Automatic optimization enables continuous
+      improvement without manual prompt engineering. Together they create reliable, adaptive
+      LLM systems.
+    
+    content:
+      self_consistency:
+        core_concept: |
+          Self-consistency algorithm:
+          
+          1. Generate multiple reasoning paths (n=3-20)
+             - Use temperature > 0 for diversity
+             - Same question, different reasoning chains
+          
+          2. Extract final answer from each path
+             - Parse conclusion/answer
+             - Normalize format
+          
+          3. Aggregate via majority voting
+             - Count answer frequencies
+             - Select most common answer
+             - Or use weighted voting
+          
+          Performance improvement: 10-30% over single sample
+        
+        implementation_details: |
+          Key parameters:
+          
+          1. **n_samples**: Number of reasoning paths
+             - Too few: Insufficient diversity
+             - Too many: Expensive, diminishing returns
+             - Sweet spot: 5-10 for most tasks
+          
+          2. **temperature**: Sampling randomness
+             - Higher temp = more diversity
+             - 0.7-1.0 typical for self-consistency
+             - Balance diversity and quality
+          
+          3. **aggregation_method**: How to combine answers
+             - Majority voting: Simple, effective
+             - Weighted by confidence: Better for uncertainty
+             - Clustering + selection: For continuous answers
+        
+        when_self_consistency_helps: |
+          Scenarios where self-consistency improves performance:
+          
+          ✅ **Noisy tasks**: High output variance
+          ✅ **Multiple valid paths**: Different reasoning to same answer
+          ✅ **Arithmetic/logic**: Calculation errors can be caught
+          ✅ **High-stakes decisions**: Need reliability
+          
+          Less helpful when:
+          ❌ **Deterministic tasks**: Same path always optimal
+          ❌ **Latency critical**: Can't afford multiple samples
+          ❌ **Cost constrained**: Multiple API calls expensive
+          ❌ **Low variance**: Single sample already reliable
+      
+      automatic_prompt_optimization:
+        problem_formulation: |
+          Prompt optimization as search problem:
+          
+          **Given**:
+          - Task: Question answering, classification, etc.
+          - Training examples: (input, expected_output) pairs
+          - Evaluation metric: Accuracy, F1, custom metric
+          
+          **Find**:
+          - Prompt P that maximizes metric on training examples
+          
+          **Search space**:
+          - Instruction variations
+          - Demonstration selection
+          - Format changes
+          - Reasoning structure
+        
+        optimization_approaches: |
+          1. **Manual iteration**: Baseline
+             - Human tries different prompts
+             - Evaluates on test set
+             - Refines based on results
+             - Slow, requires expertise
+          
+          2. **Random search**: Simple baseline
+             - Generate random prompt variations
+             - Evaluate each
+             - Keep best
+             - Better than manual in some cases
+          
+          3. **Gradient-based**: APE, APO methods
+             - Use LLM to generate prompt variations
+             - Evaluate variations
+             - Use feedback to guide generation
+             - Iterative improvement
+          
+          4. **Genetic algorithms**: Evolutionary approach
+             - Population of prompts
+             - Crossover, mutation
+             - Selection based on fitness
+             - Gradually improve population
+        
+        prompt_variations: |
+          What can be optimized:
+          
+          1. **Instruction wording**:
+             - "Classify sentiment" vs "Determine if positive or negative"
+             - "Answer the question" vs "Provide a detailed response"
+          
+          2. **Example selection and ordering**:
+             - Which demonstrations to include
+             - What order to present them
+          
+          3. **Format and structure**:
+             - JSON vs plain text
+             - Structured vs freeform
+          
+          4. **Reasoning guidance**:
+             - Zero-shot vs few-shot vs CoT
+             - Reasoning structure specification
+      
+      practical_considerations:
+        evaluation_metrics: |
+          Choosing optimization objective:
+          
+          1. **Accuracy**: Correct/total
+             - Simple, interpretable
+             - May not capture nuance
+          
+          2. **F1 score**: Precision + Recall
+             - Better for imbalanced data
+             - Common for classification
+          
+          3. **Custom metrics**: Task-specific
+             - Faithfulness (RAG)
+             - Reasoning quality
+             - Safety/alignment
+          
+          4. **Human evaluation**: Gold standard
+             - Most accurate
+             - Expensive, slow
+             - Use for final validation
+        
+        optimization_pitfalls: |
+          Common issues:
+          
+          1. **Overfitting to training set**:
+             - Prompt works on train, fails on test
+             - Solution: Hold-out validation set
+          
+          2. **Local optima**: Stuck at suboptimal prompt
+             - Solution: Multiple restarts, diverse search
+          
+          3. **Evaluation noise**: Metrics fluctuate
+             - Solution: Multiple evaluation runs
+          
+          4. **Compute cost**: Many LLM calls expensive
+             - Solution: Sample efficiently, cache results
+    
+    implementation:
+      self_consistency_optimizer:
+        language: python
+        code: |
+          """
+          Self-consistency and prompt optimization implementation.
+          Generates multiple reasoning paths and aggregates answers.
+          """
+          
+          from typing import List, Dict, Callable, Tuple
+          from collections import Counter
+          import numpy as np
+          
+          class SelfConsistency:
+              """
+              Self-consistency implementation for reliable outputs.
+              
+              Generates multiple reasoning paths and aggregates via majority voting.
+              """
+              
+              def __init__(self, 
+                          generate_function: Callable,
+                          n_samples: int = 5,
+                          temperature: float = 0.7):
+                  """
+                  Initialize self-consistency.
+                  
+                  Args:
+                      generate_function: Function that takes prompt and returns response
+                      n_samples: Number of samples to generate
+                      temperature: Sampling temperature for diversity
+                  """
+                  self.generate = generate_function
+                  self.n_samples = n_samples
+                  self.temperature = temperature
+              
+              def extract_answer(self, response: str) -> str:
+                  """
+                  Extract final answer from response.
+                  
+                  Args:
+                      response: LLM response with reasoning
+                  
+                  Returns:
+                      Extracted answer
+                  """
+                  # Look for common answer patterns
+                  patterns = [
+                      r'[Tt]herefore[,:]?\s*(.+?)(?:\.|$)',
+                      r'[Ff]inal answer[:]?\s*(.+?)(?:\.|$)',
+                      r'[Cc]onclusion[:]?\s*(.+?)(?:\.|$)',
+                      r'[Aa]nswer[:]?\s*(.+?)(?:\.|$)',
+                  ]
+                  
+                  import re
+                  for pattern in patterns:
+                      match = re.search(pattern, response, re.IGNORECASE | re.MULTILINE)
+                      if match:
+                          return match.group(1).strip()
+                  
+                  # Fallback: last non-empty line
+                  lines = [l.strip() for l in response.split('\n') if l.strip()]
+                  if lines:
+                      return lines[-1]
+                  
+                  return response.strip()
+              
+              def normalize_answer(self, answer: str) -> str:
+                  """
+                  Normalize answer for comparison.
+                  
+                  Args:
+                      answer: Raw answer string
+                  
+                  Returns:
+                      Normalized answer
+                  """
+                  # Convert to lowercase
+                  answer = answer.lower()
+                  
+                  # Remove punctuation
+                  import string
+                  answer = answer.translate(str.maketrans('', '', string.punctuation))
+                  
+                  # Remove extra whitespace
+                  answer = ' '.join(answer.split())
+                  
+                  return answer
+              
+              def generate_multiple(self, prompt: str) -> List[Tuple[str, str]]:
+                  """
+                  Generate multiple responses for same prompt.
+                  
+                  Args:
+                      prompt: Prompt to generate from
+                  
+                  Returns:
+                      List of (full_response, extracted_answer) tuples
+                  """
+                  responses = []
+                  
+                  for i in range(self.n_samples):
+                      # Generate response
+                      response = self.generate(prompt, temperature=self.temperature)
+                      
+                      # Extract answer
+                      answer = self.extract_answer(response)
+                      
+                      responses.append((response, answer))
+                  
+                  return responses
+              
+              def aggregate_majority_vote(self, answers: List[str]) -> Tuple[str, float]:
+                  """
+                  Aggregate answers via majority voting.
+                  
+                  Args:
+                      answers: List of extracted answers
+                  
+                  Returns:
+                      (most_common_answer, confidence)
+                  """
+                  # Normalize answers
+                  normalized = [self.normalize_answer(a) for a in answers]
+                  
+                  # Count frequencies
+                  counter = Counter(normalized)
+                  
+                  if not counter:
+                      return "", 0.0
+                  
+                  # Get most common
+                  most_common = counter.most_common(1)[0]
+                  answer = most_common[0]
+                  count = most_common[1]
+                  
+                  # Calculate confidence
+                  confidence = count / len(answers)
+                  
+                  # Return original (non-normalized) version
+                  original_answer = answers[normalized.index(answer)]
+                  
+                  return original_answer, confidence
+              
+              def query(self, prompt: str, verbose: bool = False) -> Dict:
+                  """
+                  Query with self-consistency.
+                  
+                  Args:
+                      prompt: Prompt to query
+                      verbose: Print intermediate results
+                  
+                  Returns:
+                      Dictionary with results
+                  """
+                  # Generate multiple responses
+                  responses = self.generate_multiple(prompt)
+                  
+                  if verbose:
+                      print(f"\nGenerated {len(responses)} responses:")
+                      for i, (full_resp, answer) in enumerate(responses, 1):
+                          print(f"\nResponse {i}:")
+                          print(f"  Answer: {answer}")
+                  
+                  # Extract answers
+                  answers = [answer for _, answer in responses]
+                  
+                  # Aggregate
+                  final_answer, confidence = self.aggregate_majority_vote(answers)
+                  
+                  if verbose:
+                      print(f"\nAggregation:")
+                      print(f"  Final answer: {final_answer}")
+                      print(f"  Confidence: {confidence:.2%}")
+                      print(f"  Answer distribution: {Counter(answers)}")
+                  
+                  return {
+                      'answer': final_answer,
+                      'confidence': confidence,
+                      'all_responses': responses,
+                      'all_answers': answers,
+                      'answer_distribution': dict(Counter(answers))
+                  }
+          
+          
+          class PromptOptimizer:
+              """
+              Simple prompt optimizer using evaluation feedback.
+              
+              Tries variations and keeps the best.
+              """
+              
+              def __init__(self, 
+                          evaluate_function: Callable,
+                          generate_function: Callable):
+                  """
+                  Initialize optimizer.
+                  
+                  Args:
+                      evaluate_function: Function(prompt, examples) -> score
+                      generate_function: Function to generate responses
+                  """
+                  self.evaluate = evaluate_function
+                  self.generate = generate_function
+                  self.best_prompt = None
+                  self.best_score = -float('inf')
+                  self.history = []
+              
+              def generate_variations(self, base_prompt: str, n: int = 5) -> List[str]:
+                  """
+                  Generate prompt variations.
+                  
+                  Args:
+                      base_prompt: Starting prompt
+                      n: Number of variations
+                  
+                  Returns:
+                      List of prompt variations
+                  """
+                  variations = [base_prompt]
+                  
+                  # Simple variations (in production, use LLM to generate)
+                  instruction_templates = [
+                      "Please solve the following problem:",
+                      "Answer the following question:",
+                      "Provide a detailed response to:",
+                      "Analyze and respond to:",
+                  ]
+                  
+                  for template in instruction_templates[:n-1]:
+                      # Replace first line with new instruction
+                      lines = base_prompt.split('\n')
+                      varied = [template] + lines[1:]
+                      variations.append('\n'.join(varied))
+                  
+                  return variations[:n]
+              
+              def optimize(self, 
+                          base_prompt: str, 
+                          training_examples: List[Tuple],
+                          n_iterations: int = 3,
+                          n_variations: int = 5) -> str:
+                  """
+                  Optimize prompt through iterative refinement.
+                  
+                  Args:
+                      base_prompt: Starting prompt template
+                      training_examples: List of (input, expected_output) tuples
+                      n_iterations: Number of optimization iterations
+                      n_variations: Variations per iteration
+                  
+                  Returns:
+                      Best prompt found
+                  """
+                  current_prompt = base_prompt
+                  
+                  for iteration in range(n_iterations):
+                      print(f"\nIteration {iteration + 1}/{n_iterations}")
+                      
+                      # Generate variations
+                      variations = self.generate_variations(current_prompt, n_variations)
+                      
+                      # Evaluate each
+                      for var_idx, prompt in enumerate(variations):
+                          score = self.evaluate(prompt, training_examples)
+                          
+                          print(f"  Variation {var_idx + 1}: Score = {score:.3f}")
+                          
+                          self.history.append({
+                              'iteration': iteration,
+                              'prompt': prompt,
+                              'score': score
+                          })
+                          
+                          # Track best
+                          if score > self.best_score:
+                              self.best_score = score
+                              self.best_prompt = prompt
+                              print(f"    ✓ New best score!")
+                      
+                      # Use best as base for next iteration
+                      current_prompt = self.best_prompt
+                  
+                  print(f"\nOptimization complete!")
+                  print(f"Best score: {self.best_score:.3f}")
+                  
+                  return self.best_prompt
+          
+          
+          def demonstrate_self_consistency():
+              """Demonstrate self-consistency with mock generation."""
+              print("\n" + "="*80)
+              print("SELF-CONSISTENCY DEMONSTRATION")
+              print("="*80)
+              
+              # Mock generation function (simulates LLM with variance)
+              def mock_generate(prompt: str, temperature: float = 0.7) -> str:
+                  # Simulate different reasoning paths to same answer
+                  import random
+                  
+                  # 80% correct, 20% error (simulates LLM noise)
+                  if random.random() < 0.8:
+                      reasoning = random.choice([
+                          "Step 1: 10 + 5 = 15\nTherefore, the answer is 15.",
+                          "Let's add: 10 + 5 = 15\nFinal answer: 15",
+                          "Sum: 10 + 5 = 15\nAnswer: 15",
+                      ])
+                  else:
+                      # Simulated error
+                      reasoning = "Calculation: 10 + 5 = 14\nAnswer: 14"
+                  
+                  return reasoning
+              
+              # Initialize self-consistency
+              sc = SelfConsistency(
+                  generate_function=mock_generate,
+                  n_samples=10,
+                  temperature=0.7
+              )
+              
+              # Query
+              prompt = "Q: What is 10 + 5?\nA: Let's think step by step:"
+              result = sc.query(prompt, verbose=True)
+              
+              print(f"\n{'='*80}")
+              print("RESULTS")
+              print(f"{'='*80}")
+              print(f"Final answer: {result['answer']}")
+              print(f"Confidence: {result['confidence']:.1%}")
+              print(f"Votes: {result['answer_distribution']}")
+          
+          
+          if __name__ == "__main__":
+              demonstrate_self_consistency()
+    
+    security_implications:
+      consistency_attack: |
+        **Vulnerability**: Attackers can craft inputs that produce inconsistent outputs,
+        then exploit the aggregation mechanism to bias results.
+        
+        **Attack scenario**: Self-consistency uses majority voting. Attacker crafts input
+        that causes model to produce specific wrong answer 60% of the time through subtle
+        prompt manipulation. Majority voting selects this wrong answer as "most consistent."
+        
+        **Defense**:
+        1. Confidence thresholds: Require supermajority (>70%) for high-stakes
+        2. Outlier detection: Flag when consistency is suspiciously high/low
+        3. Diversity enforcement: Ensure answers actually differ in reasoning
+        4. Verification: Check final answer against ground truth when possible
+        5. Monitor: Track consistency patterns for anomalies
+      
+      optimization_poisoning: |
+        **Vulnerability**: Automatic prompt optimization can be poisoned by malicious
+        training examples that cause optimizer to select harmful prompts.
+        
+        **Attack scenario**: Training set contains examples where malicious answer is
+        marked as correct. Optimizer learns prompt that produces malicious outputs because
+        they score well on poisoned evaluation set.
+        
+        **Defense**:
+        1. Curate training data: Human review of all optimization examples
+        2. Separate validation: Test optimized prompts on clean held-out set
+        3. Human review: Inspect optimized prompts before deployment
+        4. Sanity checks: Verify prompts don't contain injection patterns
+        5. Gradual rollout: A/B test optimized prompts before full deployment
+      
+      aggregation_manipulation: |
+        **Vulnerability**: Aggregation mechanisms can be gamed if attacker understands
+        the algorithm and can influence multiple samples.
+        
+        **Attack scenario**: System generates 5 samples and uses majority voting. Attacker
+        crafts input that causes 3/5 samples to produce specific answer through subtle
+        reasoning manipulation, winning majority vote.
+        
+        **Defense**:
+        1. Increase sample size: Harder to bias with more samples
+        2. Use weighted voting: Weight by confidence or reasoning quality
+        3. Outlier removal: Exclude suspicious samples before aggregation
+        4. Diversity requirements: Ensure samples truly differ
+        5. Multiple aggregation methods: Compare majority vote with other methods
+
+key_takeaways:
+  critical_concepts:
+    - concept: "Few-shot learning teaches LLMs tasks through demonstrations without parameter updates"
+      why_it_matters: "Most powerful prompting technique. 3-5 examples often improve performance 20-50%. Enables rapid adaptation to new tasks without fine-tuning."
+    
+    - concept: "Chain-of-thought prompting elicits step-by-step reasoning, dramatically improving complex task performance"
+      why_it_matters: "CoT is essential for reasoning tasks. 'Let's think step by step' improves arithmetic, logic, and problem-solving by 20-50%. Production-critical for reliable systems."
+    
+    - concept: "Self-consistency generates multiple reasoning paths and aggregates via majority voting for reliability"
+      why_it_matters: "Single LLM outputs are noisy. Self-consistency reduces variance and improves accuracy 10-30% at cost of multiple samples. Essential for high-stakes applications."
+    
+    - concept: "Advanced prompting introduces new attack surfaces: demonstration poisoning, reasoning manipulation, consistency attacks"
+      why_it_matters: "Sophisticated prompting = sophisticated attacks. Each technique must be secured. Validation, verification, and monitoring are essential."
+  
+  actionable_steps:
+    - step: "Use hybrid example selection (similarity + diversity) for few-shot prompting in production"
+      verification: "Compare against random and similarity-only. Hybrid should balance relevance and coverage, improving quality."
+    
+    - step: "Implement chain-of-thought prompting for any task requiring reasoning, arithmetic, or multi-step logic"
+      verification: "A/B test with and without CoT. Should see 20-50% improvement on reasoning tasks."
+    
+    - step: "Deploy self-consistency (3-5 samples) for high-stakes decisions where reliability matters"
+      verification: "Measure accuracy and variance. Self-consistency should reduce both errors and variance."
+    
+    - step: "Validate demonstrations and reasoning chains before using in production prompts"
+      verification: "Test demonstrations on known correct/incorrect cases. Verify reasoning steps are logically sound."
+  
+  security_principles:
+    - principle: "Validate all demonstrations: verify correctness, check for poisoning patterns"
+      application: "Human review, automated testing on ground truth, consistency checks across demonstrations."
+    
+    - principle: "Verify reasoning chains: check each step for logical soundness and factual accuracy"
+      application: "Parse reasoning steps, validate calculations, check premises against knowledge base, flag gaps."
+    
+    - principle: "Require diversity: don't accept suspiciously consistent or perfectly uniform outputs"
+      application: "Monitor answer distributions, enforce minimum diversity, detect collusion or gaming attempts."
+    
+    - principle: "Defense-in-depth for aggregation: use multiple methods and cross-check results"
+      application: "Combine majority voting with confidence weighting, outlier detection, and sanity checks."
+  
+  common_mistakes:
+    - mistake: "Random demonstration selection without considering relevance or diversity"
+      fix: "Use hybrid selection: similarity + diversity. Dramatically improves few-shot quality."
+    
+    - mistake: "Not using chain-of-thought for reasoning tasks, getting poor accuracy"
+      fix: "Add 'Let's think step by step' or provide CoT demonstrations. 20-50% improvement typical."
+    
+    - mistake: "Relying on single sample for high-stakes decisions"
+      fix: "Use self-consistency (5-10 samples + majority voting). Reduces errors and variance significantly."
+    
+    - mistake: "No validation of demonstrations or reasoning chains, allowing poisoning"
+      fix: "Implement validation pipeline: check correctness, verify logic, human review."
+    
+    - mistake: "Blind trust in aggregated results without verification"
+      fix: "Add confidence thresholds, outlier detection, cross-validation against ground truth."
+  
+  integration_with_book:
+    from_section_4_4:
+      - "RAG systems (4.4) benefit enormously from advanced prompting"
+      - "Few-shot examples teach LLM how to use retrieved context effectively"
+      - "CoT helps LLM reason over multiple retrieved documents"
+      - "Self-consistency improves RAG reliability for critical applications"
+    
+    to_next_section:
+      - "Section 4.6: Fine-tuning (LoRA, QLoRA) as alternative to advanced prompting"
+      - "Key decision: When to improve via prompting vs when to fine-tune?"
+      - "Often combine: fine-tuning for base task, prompting for adaptation"
+  
+  looking_ahead:
+    next_concepts:
+      - "Fine-tuning with LoRA and QLoRA for task adaptation (4.6)"
+      - "LLM agents using CoT and ReAct for complex workflows (4.7-4.11)"
+      - "Production deployment with prompt versioning and A/B testing (4.12-4.17)"
+      - "Continuous improvement through prompt optimization and evaluation"
+    
+    skills_to_build:
+      - "Building demonstration libraries for your specific domain"
+      - "Implementing custom aggregation strategies beyond majority voting"
+      - "Developing automated prompt testing and evaluation frameworks"
+      - "Creating prompt versioning and rollback systems for production"
+  
+  final_thoughts: |
+    Advanced prompting is not optional for production LLM systems—it's essential. The
+    difference between basic prompts and sophisticated techniques like few-shot learning,
+    chain-of-thought, and self-consistency often means the difference between systems
+    that barely work and systems that excel.
+    
+    Key insights:
+    
+    1. **Prompting is as important as model selection**: A well-prompted smaller model
+       often outperforms a poorly-prompted larger model. Master prompting before throwing
+       compute at problems.
+    
+    2. **Examples teach better than instructions**: Few-shot learning is remarkably
+       powerful. 3-5 good demonstrations often surpass pages of instructions. Invest in
+       building quality demonstration libraries.
+    
+    3. **Explicit reasoning improves reliability**: Chain-of-thought isn't just about
+       accuracy—it's about debuggability, interpretability, and trust. You can verify
+       reasoning chains; you can't verify black-box outputs.
+    
+    4. **Multiple samples reduce risk**: For high-stakes decisions, single samples are
+       insufficient. Self-consistency and ensemble techniques provide reliability through
+       redundancy.
+    
+    5. **Security requires vigilance**: Every advanced technique creates new attack surfaces.
+       Demonstration poisoning, reasoning manipulation, and consistency attacks are real
+       threats. Build validation and verification into every component.
+    
+    Moving forward, Section 4.6 explores fine-tuning as an alternative approach to
+    improving LLM performance. The key question: when to invest in better prompting
+    (fast, flexible, no training) vs fine-tuning (better performance, domain adaptation,
+    but requires training data and compute)? Understanding both enables making optimal
+    architectural decisions.
+    
+    Remember: Prompting is programming LLMs. Master the language, understand the patterns,
+    and build systems that are reliable, interpretable, and secure.
+
+---
