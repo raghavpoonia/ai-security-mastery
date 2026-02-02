@@ -1,0 +1,1918 @@
+# section_04_12_model_serving_inference_optimization.yaml
+
+---
+document_info:
+  title: "Model Serving and Inference Optimization"
+  book: "AI Security Mastery: From ML Fundamentals to Production Detection Systems"
+  chapter: 4
+  section: 12
+  part: 3
+  author: "Raghav Dinesh"
+  github: "https://github.com/raghavpoonia/ai-security-mastery"
+  license: "MIT"
+  created: "2026-01-28"
+  version: "1.0"
+  description: |
+    Complete guide to production LLM serving and inference optimization. Covers inference
+    server architecture, batching strategies (dynamic batching, continuous batching),
+    KV-cache optimization and memory management, request queuing and load balancing,
+    throughput vs latency trade-offs, and speculative decoding. Implements production-ready
+    serving systems with FastAPI, vLLM integration, and comprehensive optimization techniques.
+    Security analysis covering DoS attacks, model extraction, prompt injection at scale,
+    and resource exhaustion. Essential for running LLM systems reliably at production scale.
+  estimated_pages: 8
+  tags:
+    - model-serving
+    - inference-optimization
+    - batching
+    - kv-cache
+    - load-balancing
+    - throughput
+    - latency
+    - production-serving
+
+section_overview:
+  title: "Model Serving and Inference Optimization"
+  number: "4.12"
+  
+  purpose: |
+    Section 4.11 completed Part 2 with agent memory and human-in-the-loop patterns. We've
+    built sophisticated agents with full capabilities: reasoning, tool use, memory, oversight.
+    But these agents run on development machines serving one user at a time—not production.
+    
+    Production serving is fundamentally different: concurrent users, strict latency SLAs,
+    cost constraints, 24/7 availability. A single 7B LLM serving 100 requests/second needs
+    multiple GPUs, careful batching, optimized memory management, and intelligent load
+    balancing. Without optimization, costs explode and latency suffers.
+    
+    This section begins Part 3 (Production Deployment) by building the foundation: inference
+    servers, batching strategies, KV-cache management, and performance optimization. Every
+    technique is production-tested, with clear trade-offs between throughput, latency, and
+    cost. Understanding serving optimization is critical for economically viable production
+    systems.
+  
+  learning_objectives:
+    conceptual:
+      - "Understand inference server architecture and serving patterns"
+      - "Grasp batching strategies: static, dynamic, and continuous batching"
+      - "Comprehend KV-cache optimization and PagedAttention mechanisms"
+      - "Understand throughput vs latency trade-offs in serving optimization"
+    
+    practical:
+      - "Build production inference servers with FastAPI and async handling"
+      - "Implement dynamic batching with request queuing and timeout management"
+      - "Optimize KV-cache memory allocation and sharing"
+      - "Deploy with vLLM for maximum throughput and efficiency"
+    
+    security_focused:
+      - "Implement request validation and rate limiting to prevent DoS"
+      - "Detect and prevent model extraction through inference queries"
+      - "Secure batching to prevent cross-request information leakage"
+      - "Implement resource quotas and abuse detection"
+  
+  prerequisites:
+    knowledge:
+      - "Section 4.11: Agent memory and state management"
+      - "Section 3: Transformer architecture and attention mechanisms"
+      - "Understanding of HTTP APIs and async programming"
+      - "Basic knowledge of GPU architecture and CUDA"
+    
+    skills:
+      - "Building REST APIs with FastAPI or Flask"
+      - "Working with async/await patterns in Python"
+      - "Understanding of queuing theory basics"
+      - "Profiling and performance optimization"
+  
+  key_transitions:
+    from_section_4_11: |
+      Section 4.11 built memory-enabled agents with state persistence and human oversight.
+      These agents are sophisticated and capable. But they're single-instance, single-user
+      systems running on development infrastructure.
+      
+      Section 4.12 transforms these agents into production services that can handle hundreds
+      of concurrent users with low latency and reasonable cost. We build optimized serving
+      infrastructure that maximizes GPU utilization while meeting SLAs.
+    
+    to_next_section: |
+      Section 4.12 covers inference optimization at the serving layer. Section 4.13 advances
+      to model-level optimization: quantization and compression techniques that reduce model
+      size and improve inference speed while maintaining quality. Together they enable
+      efficient, cost-effective production deployment.
+
+topics:
+  - topic_number: 1
+    title: "Inference Server Architecture and Batching Strategies"
+    
+    overview: |
+      Production inference servers must handle concurrent requests efficiently. The naive
+      approach—process one request at a time—severely underutilizes GPUs. Modern GPUs can
+      process 8-32+ prompts simultaneously, but only if requests are batched together.
+      
+      Batching strategies range from static (wait for batch to fill) to continuous (dynamic
+      batching with requests entering/exiting continuously). Static batching causes head-of-
+      line blocking. Continuous batching maximizes throughput while minimizing latency.
+      
+      We build complete inference servers from scratch, implement multiple batching strategies,
+      understand trade-offs, and deploy with production frameworks like vLLM. Understanding
+      batching is critical—it's the difference between 10 req/sec and 100 req/sec on the
+      same hardware.
+    
+    content:
+      inference_server_architecture:
+        basic_server_pattern: |
+          Basic inference server architecture:
+```
+          ┌─────────────┐
+          │   Client    │
+          └──────┬──────┘
+                 │ HTTP Request
+                 ▼
+          ┌─────────────────────┐
+          │    API Gateway      │
+          │  - Authentication   │
+          │  - Rate Limiting    │
+          │  - Request Routing  │
+          └──────┬──────────────┘
+                 │
+                 ▼
+          ┌─────────────────────┐
+          │  Request Queue      │
+          │  - Prioritization   │
+          │  - Timeout Handling │
+          └──────┬──────────────┘
+                 │
+                 ▼
+          ┌─────────────────────┐
+          │  Batch Manager      │
+          │  - Batch Formation  │
+          │  - Dynamic Batching │
+          └──────┬──────────────┘
+                 │
+                 ▼
+          ┌─────────────────────┐
+          │  Model Inference    │
+          │  - GPU Execution    │
+          │  - KV-Cache Mgmt    │
+          └──────┬──────────────┘
+                 │
+                 ▼
+          ┌─────────────────────┐
+          │  Response Handler   │
+          │  - Token Streaming  │
+          │  - Error Handling   │
+          └──────┬──────────────┘
+                 │
+                 ▼
+          ┌─────────────┐
+          │   Client    │
+          └─────────────┘
+```
+        
+        async_request_handling: |
+          Async server for concurrent requests:
+```python
+          from fastapi import FastAPI, HTTPException
+          from pydantic import BaseModel
+          import asyncio
+          from typing import Optional
+          
+          app = FastAPI()
+          
+          class GenerateRequest(BaseModel):
+              prompt: str
+              max_tokens: int = 100
+              temperature: float = 0.7
+              stream: bool = False
+          
+          class GenerateResponse(BaseModel):
+              generated_text: str
+              tokens_used: int
+              latency_ms: float
+          
+          # Global model instance
+          model = None
+          request_queue = asyncio.Queue()
+          
+          @app.on_event("startup")
+          async def load_model():
+              """Load model on startup."""
+              global model
+              model = await load_llm_model()
+              
+              # Start batch processing worker
+              asyncio.create_task(batch_processing_worker())
+          
+          @app.post("/v1/generate")
+          async def generate(request: GenerateRequest) -> GenerateResponse:
+              """Generate text from prompt."""
+              # Create future for this request
+              future = asyncio.Future()
+              
+              # Add to queue
+              await request_queue.put((request, future))
+              
+              # Wait for result
+              result = await future
+              
+              return result
+          
+          async def batch_processing_worker():
+              """Background worker that processes batched requests."""
+              while True:
+                  # Collect batch
+                  batch = await collect_batch(
+                      max_batch_size=8,
+                      max_wait_ms=10
+                  )
+                  
+                  if batch:
+                      # Process batch
+                      results = await model.generate_batch(batch)
+                      
+                      # Return results to futures
+                      for (request, future), result in zip(batch, results):
+                          future.set_result(result)
+```
+        
+        request_queue_management: |
+          Request queuing with priorities and timeouts:
+```python
+          import asyncio
+          import time
+          from dataclasses import dataclass, field
+          from typing import Any, Optional
+          import heapq
+          
+          @dataclass(order=True)
+          class PrioritizedRequest:
+              priority: int
+              timestamp: float = field(compare=False)
+              request: Any = field(compare=False)
+              future: asyncio.Future = field(compare=False)
+              timeout: float = field(default=30.0, compare=False)
+          
+          class RequestQueue:
+              """Priority queue with timeout handling."""
+              
+              def __init__(self):
+                  self.queue = []
+                  self.lock = asyncio.Lock()
+              
+              async def put(self, request: Any, priority: int = 0,
+                          timeout: float = 30.0) -> asyncio.Future:
+                  """Add request to queue."""
+                  future = asyncio.Future()
+                  
+                  item = PrioritizedRequest(
+                      priority=priority,
+                      timestamp=time.time(),
+                      request=request,
+                      future=future,
+                      timeout=timeout
+                  )
+                  
+                  async with self.lock:
+                      heapq.heappush(self.queue, item)
+                  
+                  # Start timeout handler
+                  asyncio.create_task(self._handle_timeout(item))
+                  
+                  return future
+              
+              async def get_batch(self, max_size: int,
+                                 max_wait_ms: float = 10) -> list:
+                  """Get batch of requests."""
+                  batch = []
+                  deadline = time.time() + (max_wait_ms / 1000)
+                  
+                  while len(batch) < max_size and time.time() < deadline:
+                      async with self.lock:
+                          if self.queue:
+                              item = heapq.heappop(self.queue)
+                              
+                              # Check if timed out
+                              if not item.future.done():
+                                  batch.append(item)
+                      
+                      if len(batch) == 0:
+                          await asyncio.sleep(0.001)  # 1ms
+                  
+                  return batch
+              
+              async def _handle_timeout(self, item: PrioritizedRequest):
+                  """Handle request timeout."""
+                  await asyncio.sleep(item.timeout)
+                  
+                  if not item.future.done():
+                      item.future.set_exception(
+                          TimeoutError("Request timeout exceeded")
+                      )
+```
+      
+      batching_strategies:
+        static_batching: |
+          Static batching: Wait for batch to fill
+```python
+          async def static_batching(batch_size: int = 8):
+              """
+              Static batching: Wait until batch is full.
+              
+              Problems:
+              - Head-of-line blocking: Fast requests wait for slow ones
+              - Underutilization: If < batch_size requests, GPU idle
+              - Variable latency: Depends on batch fill time
+              """
+              batch = []
+              
+              while True:
+                  # Wait for batch to fill
+                  while len(batch) < batch_size:
+                      request = await request_queue.get()
+                      batch.append(request)
+                  
+                  # Process full batch
+                  results = await model.generate_batch(batch)
+                  
+                  # Return results
+                  for request, result in zip(batch, results):
+                      request.future.set_result(result)
+                  
+                  batch = []
+```
+          
+          **Metrics**:
+          - Throughput: Good (full batches)
+          - Latency: Poor (waiting for batch)
+          - Utilization: Poor (idle when < batch_size)
+          
+          **Use case**: Offline batch processing only
+        
+        dynamic_batching: |
+          Dynamic batching: Batch with timeout
+```python
+          async def dynamic_batching(max_batch_size: int = 8,
+                                    max_wait_ms: float = 10):
+              """
+              Dynamic batching: Batch up to size or timeout.
+              
+              Improvements:
+              - Timeout prevents indefinite waiting
+              - Better utilization
+              - Lower latency for low-load scenarios
+              """
+              while True:
+                  batch = []
+                  deadline = time.time() + (max_wait_ms / 1000)
+                  
+                  # Collect batch until size or timeout
+                  while len(batch) < max_batch_size and time.time() < deadline:
+                      try:
+                          request = await asyncio.wait_for(
+                              request_queue.get(),
+                              timeout=(deadline - time.time())
+                          )
+                          batch.append(request)
+                      except asyncio.TimeoutError:
+                          break
+                  
+                  if batch:
+                      # Process batch
+                      results = await model.generate_batch(batch)
+                      
+                      # Return results
+                      for request, result in zip(batch, results):
+                          request.future.set_result(result)
+```
+          
+          **Metrics**:
+          - Throughput: Good
+          - Latency: Better (timeout bounds waiting)
+          - Utilization: Better (processes partial batches)
+          
+          **Use case**: Most production scenarios
+        
+        continuous_batching: |
+          Continuous batching: Dynamic batch with requests entering/exiting
+          
+          **Concept**: Requests don't wait for entire batch to complete
+          - Batch processes one decoding step
+          - Completed requests exit batch
+          - New requests enter batch
+          - GPU always processing maximum possible requests
+```python
+          async def continuous_batching(max_batch_size: int = 8):
+              """
+              Continuous batching (simplified).
+              
+              vLLM implements this with PagedAttention.
+              
+              Benefits:
+              - No head-of-line blocking
+              - Maximum GPU utilization
+              - Lower average latency
+              - Higher throughput
+              """
+              active_batch = []
+              
+              while True:
+                  # Add new requests to batch
+                  while len(active_batch) < max_batch_size:
+                      try:
+                          request = await asyncio.wait_for(
+                              request_queue.get(),
+                              timeout=0.001  # 1ms
+                          )
+                          active_batch.append({
+                              "request": request,
+                              "tokens_generated": 0,
+                              "kv_cache": None
+                          })
+                      except asyncio.TimeoutError:
+                          break
+                  
+                  if not active_batch:
+                      await asyncio.sleep(0.001)
+                      continue
+                  
+                  # Generate one token for each request in batch
+                  next_tokens = await model.generate_next_token_batch(
+                      [item["request"] for item in active_batch]
+                  )
+                  
+                  # Update batch and remove completed
+                  completed = []
+                  for item, token in zip(active_batch, next_tokens):
+                      item["tokens_generated"] += 1
+                      
+                      # Check if done
+                      if token == EOS_TOKEN or item["tokens_generated"] >= max_tokens:
+                          completed.append(item)
+                          item["request"].future.set_result(
+                              get_generated_text(item)
+                          )
+                  
+                  # Remove completed from batch
+                  active_batch = [
+                      item for item in active_batch
+                      if item not in completed
+                  ]
+```
+          
+          **Metrics**:
+          - Throughput: Excellent (2-4x vs static)
+          - Latency: Excellent (no head-of-line blocking)
+          - Utilization: Excellent (always processing max requests)
+          
+          **Use case**: Production standard (use vLLM)
+      
+      kv_cache_optimization:
+        kv_cache_fundamentals: |
+          KV-cache: Store attention keys and values
+          
+          **Why needed**: Autoregressive generation
+```
+          Without cache:
+          Token 1: Compute attention for position 1
+          Token 2: Recompute attention for position 1, compute for position 2
+          Token 3: Recompute for 1, 2, compute for position 3
+          ...
+          Token N: Recompute for 1..N-1, compute for N
+          
+          With cache:
+          Token 1: Compute and store K1, V1
+          Token 2: Retrieve K1, V1, compute and store K2, V2
+          Token 3: Retrieve K1, V1, K2, V2, compute and store K3, V3
+          ...
+```
+          
+          **Memory requirements**:
+```
+          Cache size per request = 2 × num_layers × hidden_dim × sequence_length × sizeof(dtype)
+          
+          Example (Llama 2 7B, FP16):
+          - 32 layers, 4096 hidden_dim, 2048 max_seq_len
+          - 2 × 32 × 4096 × 2048 × 2 bytes = 1 GB per request!
+          
+          Batch of 8: 8 GB just for KV-cache!
+```
+          
+          This is why KV-cache optimization is critical.
+        
+        paged_attention: |
+          PagedAttention: Efficient KV-cache memory management
+          
+          **Problem**: Traditional approach allocates fixed memory per request
+          - Most sequences don't use full max_seq_len
+          - Leads to fragmentation and waste
+          - Limits batch size
+          
+          **Solution**: PagedAttention (vLLM innovation)
+          - Inspired by OS virtual memory paging
+          - Allocate KV-cache in pages (blocks)
+          - Pages can be non-contiguous in memory
+          - Share pages between requests (prefix caching)
+```python
+          # Conceptual PagedAttention
+          
+          class PagedKVCache:
+              def __init__(self, page_size: int = 16):
+                  """
+                  Paged KV-cache manager.
+                  
+                  Args:
+                      page_size: Tokens per page
+                  """
+                  self.page_size = page_size
+                  self.free_pages = []  # Pool of free pages
+                  self.request_pages = {}  # request_id -> list of pages
+              
+              def allocate_for_request(self, request_id: str,
+                                      num_tokens: int) -> list:
+                  """Allocate pages for request."""
+                  num_pages_needed = (num_tokens + self.page_size - 1) // self.page_size
+                  
+                  pages = []
+                  for _ in range(num_pages_needed):
+                      if self.free_pages:
+                          page = self.free_pages.pop()
+                      else:
+                          page = self._allocate_new_page()
+                      pages.append(page)
+                  
+                  self.request_pages[request_id] = pages
+                  return pages
+              
+              def free_request(self, request_id: str):
+                  """Free pages for completed request."""
+                  if request_id in self.request_pages:
+                      pages = self.request_pages[request_id]
+                      self.free_pages.extend(pages)
+                      del self.request_pages[request_id]
+```
+          
+          **Benefits**:
+          - 2-4x better memory efficiency
+          - Higher batch sizes (more throughput)
+          - Reduced fragmentation
+          - Enables prefix caching
+        
+        prefix_caching: |
+          Prefix caching: Share KV-cache for common prefixes
+          
+          **Concept**: Many requests share common prefix
+```
+          Request 1: "You are a helpful assistant. User: How do I code in Python?"
+          Request 2: "You are a helpful assistant. User: What is machine learning?"
+          Request 3: "You are a helpful assistant. User: Explain neural networks."
+          
+          Common prefix: "You are a helpful assistant. User: "
+```
+          
+          With PagedAttention, pages for common prefix are shared!
+```python
+          class PrefixCacheManager:
+              def __init__(self):
+                  self.prefix_cache = {}  # prefix_hash -> pages
+              
+              def get_cached_prefix(self, prompt: str) -> Optional[list]:
+                  """Check if prefix is cached."""
+                  # Find longest cached prefix
+                  for length in range(len(prompt), 0, -1):
+                      prefix = prompt[:length]
+                      prefix_hash = hash(prefix)
+                      
+                      if prefix_hash in self.prefix_cache:
+                          return self.prefix_cache[prefix_hash]
+                  
+                  return None
+              
+              def cache_prefix(self, prefix: str, pages: list):
+                  """Cache prefix pages."""
+                  prefix_hash = hash(prefix)
+                  self.prefix_cache[prefix_hash] = pages
+```
+          
+          **Benefits**:
+          - Massive memory savings for common prefixes
+          - Faster inference (prefix already processed)
+          - Especially valuable for system prompts, few-shot examples
+          
+          **Use case**: ChatGPT, Claude (all use system prompts)
+      
+      throughput_vs_latency:
+        trade_off_analysis: |
+          Throughput vs Latency trade-offs:
+          
+          **Throughput**: Requests processed per second
+          **Latency**: Time per individual request
+          
+          **Trade-offs**:
+          
+          | Strategy              | Throughput | Latency | Use Case             |
+          |-----------------------|------------|---------|----------------------|
+          | Small batch (1-2)     | Low        | Low     | Real-time chat       |
+          | Medium batch (4-8)    | Medium     | Medium  | Most applications    |
+          | Large batch (16-32)   | High       | High    | Batch processing     |
+          | Continuous batching   | High       | Medium  | Production standard  |
+          
+          **Optimization strategies**:
+          
+          1. **Latency-optimized** (chat, real-time):
+             - Small batch sizes (1-4)
+             - Low max_wait_ms (5-10ms)
+             - Speculative decoding
+             - Multiple model instances
+          
+          2. **Throughput-optimized** (batch processing):
+             - Large batch sizes (16-32+)
+             - Higher max_wait_ms (50-100ms)
+             - Continuous batching
+             - Single large instance
+          
+          3. **Balanced** (general production):
+             - Medium batch sizes (8-16)
+             - Moderate max_wait_ms (10-20ms)
+             - Continuous batching
+             - Auto-scaling
+        
+        latency_optimization_techniques: |
+          Techniques to reduce latency:
+          
+          **1. Speculative decoding**:
+          - Use small "draft" model to generate multiple tokens
+          - Verify with large "target" model in parallel
+          - Accept if verification passes, reject otherwise
+          - 2-3x speedup for many workloads
+          
+          **2. Model parallelism**:
+          - Split model across multiple GPUs
+          - Pipeline or tensor parallelism
+          - Reduces per-request latency
+          - Increases complexity
+          
+          **3. Quantization**:
+          - INT8, FP8, or INT4 weights
+          - Faster computation
+          - Lower memory bandwidth
+          - See Section 4.13
+          
+          **4. Kernel fusion**:
+          - Fuse multiple operations into single kernel
+          - Reduces memory transfers
+          - Flash attention is example
+          
+          **5. Request prioritization**:
+          - Premium tier gets priority
+          - Low-latency queue
+          - Critical requests jump queue
+        
+        throughput_optimization_techniques: |
+          Techniques to maximize throughput:
+          
+          **1. Continuous batching**:
+          - vLLM's killer feature
+          - 2-4x throughput improvement
+          - See batching strategies above
+          
+          **2. PagedAttention**:
+          - Better memory efficiency
+          - Higher batch sizes possible
+          - 2x improvement
+          
+          **3. Larger batch sizes**:
+          - Trade latency for throughput
+          - GPU utilization increases
+          - Diminishing returns after 16-32
+          
+          **4. KV-cache optimization**:
+          - Prefix caching
+          - Memory efficiency
+          - More requests fit
+          
+          **5. Multi-GPU serving**:
+          - Horizontal scaling
+          - Load balancing
+          - Linear throughput scaling
+    
+    implementation:
+      production_inference_server:
+        language: python
+        code: |
+          """
+          Production inference server with dynamic batching.
+          Demonstrates FastAPI server with async batch processing.
+          """
+          
+          import asyncio
+          import time
+          from typing import List, Dict, Optional, Any
+          from dataclasses import dataclass
+          from collections import deque
+          
+          from fastapi import FastAPI, HTTPException, BackgroundTasks
+          from fastapi.responses import StreamingResponse
+          from pydantic import BaseModel
+          import uvicorn
+          
+          # Request/Response models
+          class GenerateRequest(BaseModel):
+              prompt: str
+              max_tokens: int = 100
+              temperature: float = 0.7
+              top_p: float = 0.9
+              stream: bool = False
+          
+          class GenerateResponse(BaseModel):
+              generated_text: str
+              tokens_used: int
+              latency_ms: float
+              batch_size: int
+          
+          
+          @dataclass
+          class BatchedRequest:
+              """Request with metadata for batching."""
+              request_id: str
+              request: GenerateRequest
+              future: asyncio.Future
+              timestamp: float
+              timeout: float = 30.0
+          
+          
+          class MockLLM:
+              """
+              Mock LLM for demonstration.
+              In production, replace with actual model (vLLM, HuggingFace, etc.)
+              """
+              
+              def __init__(self):
+                  """Initialize mock LLM."""
+                  self.model_loaded = False
+              
+              async def load(self):
+                  """Load model."""
+                  print("Loading model...")
+                  await asyncio.sleep(2)  # Simulate load time
+                  self.model_loaded = True
+                  print("Model loaded")
+              
+              async def generate_batch(self, requests: List[GenerateRequest]) -> List[str]:
+                  """
+                  Generate for batch of requests.
+                  
+                  Args:
+                      requests: Batch of requests
+                  
+                  Returns:
+                      List of generated texts
+                  """
+                  if not self.model_loaded:
+                      raise RuntimeError("Model not loaded")
+                  
+                  # Simulate batch inference
+                  # In production: actual model inference
+                  batch_size = len(requests)
+                  
+                  # Simulate processing time (scales sublinearly with batch)
+                  base_time = 0.1
+                  batch_overhead = 0.02 * (batch_size - 1)
+                  await asyncio.sleep(base_time + batch_overhead)
+                  
+                  # Generate mock responses
+                  results = []
+                  for req in requests:
+                      result = f"Generated response to: {req.prompt[:30]}..."
+                      results.append(result)
+                  
+                  return results
+          
+          
+          class DynamicBatchManager:
+              """
+              Dynamic batching manager.
+              
+              Collects requests into batches and processes them efficiently.
+              """
+              
+              def __init__(self,
+                          model: MockLLM,
+                          max_batch_size: int = 8,
+                          max_wait_ms: float = 10.0):
+                  """
+                  Initialize batch manager.
+                  
+                  Args:
+                      model: LLM model instance
+                      max_batch_size: Maximum batch size
+                      max_wait_ms: Maximum wait time for batch in milliseconds
+                  """
+                  self.model = model
+                  self.max_batch_size = max_batch_size
+                  self.max_wait_ms = max_wait_ms
+                  
+                  self.request_queue = asyncio.Queue()
+                  self.running = False
+                  
+                  # Metrics
+                  self.total_requests = 0
+                  self.total_batches = 0
+                  self.total_batch_size = 0
+              
+              async def start(self):
+                  """Start batch processing worker."""
+                  self.running = True
+                  asyncio.create_task(self._batch_processing_loop())
+              
+              async def stop(self):
+                  """Stop batch processing."""
+                  self.running = False
+              
+              async def add_request(self, request: GenerateRequest) -> asyncio.Future:
+                  """
+                  Add request to queue.
+                  
+                  Args:
+                      request: Generation request
+                  
+                  Returns:
+                      Future that will contain result
+                  """
+                  future = asyncio.Future()
+                  
+                  batched_request = BatchedRequest(
+                      request_id=f"req_{int(time.time() * 1000000)}",
+                      request=request,
+                      future=future,
+                      timestamp=time.time()
+                  )
+                  
+                  await self.request_queue.put(batched_request)
+                  self.total_requests += 1
+                  
+                  # Start timeout handler
+                  asyncio.create_task(self._handle_timeout(batched_request))
+                  
+                  return future
+              
+              async def _batch_processing_loop(self):
+                  """Main batch processing loop."""
+                  while self.running:
+                      try:
+                          # Collect batch
+                          batch = await self._collect_batch()
+                          
+                          if not batch:
+                              await asyncio.sleep(0.001)  # 1ms
+                              continue
+                          
+                          # Process batch
+                          await self._process_batch(batch)
+                      
+                      except Exception as e:
+                          print(f"Error in batch processing: {e}")
+                          await asyncio.sleep(0.1)
+              
+              async def _collect_batch(self) -> List[BatchedRequest]:
+                  """
+                  Collect batch of requests.
+                  
+                  Returns:
+                      List of batched requests
+                  """
+                  batch = []
+                  deadline = time.time() + (self.max_wait_ms / 1000)
+                  
+                  while len(batch) < self.max_batch_size and time.time() < deadline:
+                      try:
+                          timeout = deadline - time.time()
+                          if timeout <= 0:
+                              break
+                          
+                          batched_req = await asyncio.wait_for(
+                              self.request_queue.get(),
+                              timeout=timeout
+                          )
+                          
+                          # Check if not already timed out
+                          if not batched_req.future.done():
+                              batch.append(batched_req)
+                      
+                      except asyncio.TimeoutError:
+                          break
+                  
+                  return batch
+              
+              async def _process_batch(self, batch: List[BatchedRequest]):
+                  """
+                  Process batch of requests.
+                  
+                  Args:
+                      batch: List of batched requests
+                  """
+                  if not batch:
+                      return
+                  
+                  batch_size = len(batch)
+                  start_time = time.time()
+                  
+                  # Extract requests
+                  requests = [b.request for b in batch]
+                  
+                  try:
+                      # Generate for batch
+                      results = await self.model.generate_batch(requests)
+                      
+                      latency_ms = (time.time() - start_time) * 1000
+                      
+                      # Return results to futures
+                      for batched_req, result in zip(batch, results):
+                          if not batched_req.future.done():
+                              response = GenerateResponse(
+                                  generated_text=result,
+                                  tokens_used=len(result.split()),  # Mock
+                                  latency_ms=latency_ms,
+                                  batch_size=batch_size
+                              )
+                              batched_req.future.set_result(response)
+                      
+                      # Update metrics
+                      self.total_batches += 1
+                      self.total_batch_size += batch_size
+                  
+                  except Exception as e:
+                      # Return error to all futures
+                      for batched_req in batch:
+                          if not batched_req.future.done():
+                              batched_req.future.set_exception(e)
+              
+              async def _handle_timeout(self, batched_req: BatchedRequest):
+                  """Handle request timeout."""
+                  await asyncio.sleep(batched_req.timeout)
+                  
+                  if not batched_req.future.done():
+                      batched_req.future.set_exception(
+                          TimeoutError("Request timeout exceeded")
+                      )
+              
+              def get_metrics(self) -> Dict:
+                  """Get batch manager metrics."""
+                  avg_batch_size = (
+                      self.total_batch_size / self.total_batches
+                      if self.total_batches > 0 else 0
+                  )
+                  
+                  return {
+                      "total_requests": self.total_requests,
+                      "total_batches": self.total_batches,
+                      "avg_batch_size": round(avg_batch_size, 2),
+                      "queue_size": self.request_queue.qsize()
+                  }
+          
+          
+          # Create FastAPI app
+          app = FastAPI(title="Production Inference Server")
+          
+          # Global state
+          model = None
+          batch_manager = None
+          
+          
+          @app.on_event("startup")
+          async def startup():
+              """Initialize on startup."""
+              global model, batch_manager
+              
+              # Load model
+              model = MockLLM()
+              await model.load()
+              
+              # Start batch manager
+              batch_manager = DynamicBatchManager(
+                  model=model,
+                  max_batch_size=8,
+                  max_wait_ms=10.0
+              )
+              await batch_manager.start()
+              
+              print("Server ready")
+          
+          
+          @app.on_event("shutdown")
+          async def shutdown():
+              """Cleanup on shutdown."""
+              if batch_manager:
+                  await batch_manager.stop()
+          
+          
+          @app.get("/health")
+          async def health():
+              """Health check."""
+              return {
+                  "status": "healthy",
+                  "model_loaded": model.model_loaded if model else False
+              }
+          
+          
+          @app.post("/v1/generate", response_model=GenerateResponse)
+          async def generate(request: GenerateRequest):
+              """
+              Generate text from prompt.
+              
+              Uses dynamic batching for efficiency.
+              """
+              if not model or not model.model_loaded:
+                  raise HTTPException(status_code=503, detail="Model not loaded")
+              
+              try:
+                  # Add to batch queue and wait for result
+                  future = await batch_manager.add_request(request)
+                  result = await future
+                  
+                  return result
+              
+              except TimeoutError:
+                  raise HTTPException(status_code=504, detail="Request timeout")
+              except Exception as e:
+                  raise HTTPException(status_code=500, detail=str(e))
+          
+          
+          @app.get("/metrics")
+          async def metrics():
+              """Get server metrics."""
+              if not batch_manager:
+                  return {}
+              
+              return batch_manager.get_metrics()
+          
+          
+          def run_server(host: str = "0.0.0.0", port: int = 8000):
+              """Run the inference server."""
+              uvicorn.run(app, host=host, port=port)
+          
+          
+          if __name__ == "__main__":
+              run_server()
+    
+    security_implications:
+      dos_through_resource_exhaustion: |
+        **Vulnerability**: Attackers exhaust server resources through malicious requests,
+        causing denial of service for legitimate users.
+        
+        **Attack scenario 1**: Long prompt attack
+        - Submit requests with maximum prompt length (100K tokens)
+        - Exhausts memory with KV-cache
+        - Prevents other requests from being batched
+        
+        **Attack scenario 2**: High max_tokens attack
+        - Request max_tokens=100000 for simple prompts
+        - Ties up GPU for extended time
+        - Blocks batch processing
+        
+        **Attack scenario 3**: Flood attack
+        - Send thousands of concurrent requests
+        - Exhaust queue capacity
+        - Legitimate requests rejected
+        
+        **Defense**:
+        1. Input validation: Limit prompt length (e.g., 4K tokens max)
+        2. Output limits: Cap max_tokens (e.g., 2K max)
+        3. Rate limiting: Limit requests per user/IP (e.g., 10/minute)
+        4. Request timeout: Kill requests exceeding time limit (30s)
+        5. Queue limits: Cap queue size, reject when full
+        6. Resource quotas: Limit GPU time per user per hour
+        7. Priority queuing: Premium/verified users get priority
+      
+      model_extraction_via_inference: |
+        **Vulnerability**: Attackers extract model weights or capabilities through carefully
+        designed inference queries, enabling model theft.
+        
+        **Attack scenario 1**: Model stealing
+        - Send thousands of diverse prompts
+        - Collect input-output pairs
+        - Train substitute model on pairs
+        - Replicate original model behavior
+        
+        **Attack scenario 2**: Architecture probing
+        - Craft inputs that reveal model internals
+        - Measure response times for different inputs
+        - Infer model architecture, size, quantization
+        
+        **Attack scenario 3**: Training data extraction
+        - Craft prompts that cause model to regurgitate training data
+        - Extract copyrighted or private training content
+        
+        **Defense**:
+        1. Rate limiting: Prevent mass querying (see above)
+        2. Output filtering: Detect verbatim training data reproduction
+        3. Query monitoring: Flag systematic probing patterns
+        4. Response perturbation: Add small noise to prevent exact extraction
+        5. Watermarking: Embed detectable signatures in outputs
+        6. API logging: Track who queries what, enable forensics
+        7. Legal protections: Terms of service prohibiting extraction
+      
+      batch_information_leakage: |
+        **Vulnerability**: Information leaks between batched requests through shared
+        computational state or timing channels.
+        
+        **Attack scenario 1**: Timing side-channel
+        - Attacker submits request A
+        - Measures response time
+        - If batched with expensive request B, A takes longer
+        - Leaks information about other users' queries
+        
+        **Attack scenario 2**: Cache state pollution
+        - Request A processes sensitive data
+        - Request B in same batch observes cache effects
+        - Infers information about A's input
+        
+        **Attack scenario 3**: Memory side-channel
+        - Shared GPU memory between batch members
+        - Spectre-style attacks extract data from other requests
+        
+        **Defense**:
+        1. Batch isolation: Ensure computational isolation between requests
+        2. Constant-time operations: Avoid timing variations
+        3. Cache flushing: Clear caches between batches
+        4. Memory encryption: Encrypt GPU memory
+        5. Separate batches by sensitivity: Don't mix public/private
+        6. Timing jitter: Add random delays to prevent timing analysis
+        7. Monitoring: Detect unusual timing patterns
+
+  - topic_number: 2
+    title: "Production Deployment with vLLM and Load Balancing"
+    
+    overview: |
+      Building serving infrastructure from scratch teaches fundamentals, but production
+      deployments should use battle-tested frameworks. vLLM is the industry standard for
+      LLM serving, providing continuous batching, PagedAttention, and extensive optimizations.
+      
+      Multi-instance deployment requires load balancing to distribute requests, health checks
+      to detect failures, and auto-scaling to handle variable load. We implement complete
+      production patterns with multiple model instances, load balancing, and monitoring.
+    
+    content:
+      vllm_deployment:
+        vllm_architecture: |
+          vLLM architecture and features:
+          
+          **Core innovations**:
+          1. **Continuous batching**: Requests enter/exit dynamically
+          2. **PagedAttention**: Efficient KV-cache memory management
+          3. **Optimized kernels**: CUDA kernels for critical operations
+          4. **Tensor parallelism**: Multi-GPU support
+          5. **Quantization**: INT8/FP8 support
+          
+          **Performance**:
+          - 2-4x higher throughput vs baseline
+          - 50% lower latency for high load
+          - 2-3x better memory efficiency
+          
+          **Deployment**:
+```bash
+          # Install vLLM
+          pip install vllm
+          
+          # Start vLLM server
+          python -m vllm.entrypoints.openai.api_server \
+              --model meta-llama/Llama-2-7b-hf \
+              --host 0.0.0.0 \
+              --port 8000 \
+              --tensor-parallel-size 1
+```
+          
+          **API usage**:
+```python
+          from vllm import LLM, SamplingParams
+          
+          # Initialize
+          llm = LLM(model="meta-llama/Llama-2-7b-hf")
+          
+          # Sampling parameters
+          sampling_params = SamplingParams(
+              temperature=0.7,
+              top_p=0.9,
+              max_tokens=100
+          )
+          
+          # Generate
+          outputs = llm.generate(prompts, sampling_params)
+```
+        
+        vllm_configuration: |
+          vLLM configuration for production:
+```python
+          from vllm import AsyncLLMEngine, AsyncEngineArgs, SamplingParams
+          
+          # Engine configuration
+          engine_args = AsyncEngineArgs(
+              model="meta-llama/Llama-2-7b-hf",
+              
+              # GPU configuration
+              tensor_parallel_size=1,  # GPUs for tensor parallelism
+              gpu_memory_utilization=0.90,  # 90% GPU memory
+              
+              # Batch configuration
+              max_num_batched_tokens=8192,  # Max tokens in batch
+              max_num_seqs=256,  # Max sequences
+              
+              # Performance
+              disable_log_stats=False,  # Enable stats logging
+              max_context_len_to_capture=8192,
+              
+              # Quantization (optional)
+              quantization="awq",  # or "gptq", None
+              
+              # KV-cache
+              block_size=16,  # Tokens per block for PagedAttention
+              swap_space=4,  # GB of CPU swap space
+          )
+          
+          # Create engine
+          engine = AsyncLLMEngine.from_engine_args(engine_args)
+```
+          
+          **Tuning parameters**:
+          - `gpu_memory_utilization`: Higher = more batching, but less stability
+          - `max_num_batched_tokens`: Higher = more throughput, but more memory
+          - `block_size`: 16 is good default for PagedAttention
+        
+        openai_compatible_api: |
+          vLLM provides OpenAI-compatible API:
+```python
+          import openai
+          
+          # Point to vLLM server
+          openai.api_base = "http://localhost:8000/v1"
+          openai.api_key = "EMPTY"  # vLLM doesn't require key
+          
+          # Use like OpenAI API
+          completion = openai.Completion.create(
+              model="meta-llama/Llama-2-7b-hf",
+              prompt="Once upon a time",
+              max_tokens=100,
+              temperature=0.7
+          )
+          
+          print(completion.choices[0].text)
+```
+          
+          **Benefits**:
+          - Drop-in replacement for OpenAI
+          - Compatible with existing tools (LangChain, etc.)
+          - Easy migration
+      
+      load_balancing:
+        multi_instance_deployment: |
+          Deploy multiple model instances:
+          
+          **Why multiple instances**:
+          - Higher total throughput
+          - Redundancy (if one fails, others serve)
+          - Rolling updates (update one at a time)
+          - Geographic distribution
+          
+          **Architecture**:
+```
+                    ┌──────────────┐
+                    │Load Balancer │
+                    └───────┬──────┘
+                            │
+              ┌─────────────┼─────────────┐
+              │             │             │
+              ▼             ▼             ▼
+          ┌────────┐    ┌────────┐    ┌────────┐
+          │vLLM #1 │    │vLLM #2 │    │vLLM #3 │
+          │GPU 0   │    │GPU 1   │    │GPU 2   │
+          └────────┘    └────────┘    └────────┘
+```
+          
+          **Kubernetes deployment**:
+```yaml
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: vllm-server
+          spec:
+            replicas: 3  # 3 instances
+            selector:
+              matchLabels:
+                app: vllm
+            template:
+              metadata:
+                labels:
+                  app: vllm
+              spec:
+                containers:
+                - name: vllm
+                  image: vllm/vllm-openai:latest
+                  args:
+                  - --model
+                  - meta-llama/Llama-2-7b-hf
+                  - --host
+                  - "0.0.0.0"
+                  - --port
+                  - "8000"
+                  resources:
+                    limits:
+                      nvidia.com/gpu: 1
+```
+        
+        load_balancing_strategies: |
+          Load balancing algorithms:
+          
+          **1. Round Robin**:
+          - Distribute requests sequentially
+          - Simple, fair
+          - Doesn't account for instance load
+          
+          **2. Least Connections**:
+          - Send to instance with fewest active connections
+          - Better load distribution
+          - Requires connection tracking
+          
+          **3. Least Response Time**:
+          - Send to instance with lowest average latency
+          - Adapts to instance performance
+          - Requires latency monitoring
+          
+          **4. Weighted Round Robin**:
+          - Weight instances by capacity
+          - Different GPU types get different weights
+          - More sophisticated
+          
+          **5. Queue-based**:
+          - Send to instance with shortest queue
+          - Best for batch processing
+          - Requires queue visibility
+          
+          **Nginx configuration** (Least Connections):
+```nginx
+          upstream vllm_backend {
+              least_conn;  # Least connections algorithm
+              
+              server vllm-1:8000 max_fails=3 fail_timeout=30s;
+              server vllm-2:8000 max_fails=3 fail_timeout=30s;
+              server vllm-3:8000 max_fails=3 fail_timeout=30s;
+          }
+          
+          server {
+              listen 80;
+              
+              location / {
+                  proxy_pass http://vllm_backend;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  
+                  # Timeouts
+                  proxy_connect_timeout 5s;
+                  proxy_send_timeout 60s;
+                  proxy_read_timeout 60s;
+              }
+          }
+```
+        
+        health_checks_and_failover: |
+          Health checks and automatic failover:
+          
+          **Health check endpoint**:
+```python
+          @app.get("/health")
+          async def health():
+              """
+              Health check endpoint.
+              
+              Returns 200 if healthy, 503 if not ready.
+              """
+              try:
+                  # Check model loaded
+                  if not model_loaded:
+                      return JSONResponse(
+                          status_code=503,
+                          content={"status": "unhealthy", "reason": "model not loaded"}
+                      )
+                  
+                  # Quick inference test
+                  test_result = await model.generate(["test"], max_tokens=1)
+                  
+                  return {"status": "healthy", "model": "ready"}
+              
+              except Exception as e:
+                  return JSONResponse(
+                      status_code=503,
+                      content={"status": "unhealthy", "reason": str(e)}
+                  )
+```
+          
+          **Nginx health checks**:
+```nginx
+          upstream vllm_backend {
+              server vllm-1:8000 max_fails=3 fail_timeout=30s;
+              server vllm-2:8000 max_fails=3 fail_timeout=30s;
+              server vllm-3:8000 max_fails=3 fail_timeout=30s;
+              
+              # Health check (requires nginx-plus or external module)
+              check interval=3000 rise=2 fall=3 timeout=1000 type=http;
+              check_http_send "GET /health HTTP/1.0\r\n\r\n";
+              check_http_expect_alive http_2xx;
+          }
+```
+          
+          **Kubernetes liveness/readiness**:
+```yaml
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 120  # Model load time
+            periodSeconds: 30
+            failureThreshold: 3
+          
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 3
+```
+      
+      auto_scaling:
+        horizontal_pod_autoscaler: |
+          Kubernetes Horizontal Pod Autoscaler:
+```yaml
+          apiVersion: autoscaling/v2
+          kind: HorizontalPodAutoscaler
+          metadata:
+            name: vllm-hpa
+          spec:
+            scaleTargetRef:
+              apiVersion: apps/v1
+              kind: Deployment
+              name: vllm-server
+            minReplicas: 2
+            maxReplicas: 10
+            metrics:
+            # Scale based on queue depth
+            - type: Pods
+              pods:
+                metric:
+                  name: request_queue_depth
+                target:
+                  type: AverageValue
+                  averageValue: "50"
+            # Scale based on GPU utilization
+            - type: Pods
+              pods:
+                metric:
+                  name: gpu_utilization
+                target:
+                  type: AverageValue
+                  averageValue: "80"
+            behavior:
+              scaleUp:
+                stabilizationWindowSeconds: 0
+                policies:
+                - type: Percent
+                  value: 100  # Double instantly if needed
+                  periodSeconds: 15
+              scaleDown:
+                stabilizationWindowSeconds: 300  # 5 min cooldown
+                policies:
+                - type: Percent
+                  value: 50  # Halve slowly
+                  periodSeconds: 60
+```
+        
+        custom_metrics_for_scaling: |
+          Custom metrics for LLM autoscaling:
+          
+          **Queue depth** (best metric):
+```python
+          from prometheus_client import Gauge
+          
+          queue_depth_gauge = Gauge(
+              'request_queue_depth',
+              'Number of requests in queue'
+          )
+          
+          # Update metric
+          queue_depth_gauge.set(request_queue.qsize())
+```
+          
+          **GPU utilization**:
+```python
+          import pynvml
+          
+          pynvml.nvmlInit()
+          handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+          
+          util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+          gpu_util_gauge.set(util.gpu)
+```
+          
+          **Latency percentiles**:
+```python
+          from prometheus_client import Histogram
+          
+          latency_histogram = Histogram(
+              'request_latency_seconds',
+              'Request latency',
+              buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
+          )
+          
+          # Record latency
+          with latency_histogram.time():
+              result = await process_request()
+```
+    
+    implementation:
+      vllm_production_deployment:
+        language: yaml
+        code: |
+          # Complete vLLM production deployment with Kubernetes
+          
+          ---
+          # ConfigMap for vLLM configuration
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: vllm-config
+            namespace: inference
+          data:
+            MODEL_NAME: "meta-llama/Llama-2-7b-hf"
+            GPU_MEMORY_UTILIZATION: "0.90"
+            MAX_NUM_SEQS: "256"
+            MAX_NUM_BATCHED_TOKENS: "8192"
+          
+          ---
+          # Deployment
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: vllm-server
+            namespace: inference
+            labels:
+              app: vllm
+              version: v1
+          spec:
+            replicas: 3
+            selector:
+              matchLabels:
+                app: vllm
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 1
+                maxUnavailable: 0
+            template:
+              metadata:
+                labels:
+                  app: vllm
+                  version: v1
+              spec:
+                # Node selection for GPU nodes
+                nodeSelector:
+                  nvidia.com/gpu.present: "true"
+                
+                containers:
+                - name: vllm
+                  image: vllm/vllm-openai:v0.2.7
+                  command:
+                  - python3
+                  - -m
+                  - vllm.entrypoints.openai.api_server
+                  args:
+                  - --model
+                  - $(MODEL_NAME)
+                  - --host
+                  - "0.0.0.0"
+                  - --port
+                  - "8000"
+                  - --gpu-memory-utilization
+                  - $(GPU_MEMORY_UTILIZATION)
+                  - --max-num-seqs
+                  - $(MAX_NUM_SEQS)
+                  - --max-num-batched-tokens
+                  - $(MAX_NUM_BATCHED_TOKENS)
+                  
+                  ports:
+                  - name: http
+                    containerPort: 8000
+                    protocol: TCP
+                  
+                  # Environment from ConfigMap
+                  envFrom:
+                  - configMapRef:
+                      name: vllm-config
+                  
+                  # Resource limits
+                  resources:
+                    requests:
+                      memory: "16Gi"
+                      cpu: "4"
+                      nvidia.com/gpu: "1"
+                    limits:
+                      memory: "32Gi"
+                      cpu: "8"
+                      nvidia.com/gpu: "1"
+                  
+                  # Liveness probe
+                  livenessProbe:
+                    httpGet:
+                      path: /health
+                      port: 8000
+                    initialDelaySeconds: 180  # Model load time
+                    periodSeconds: 30
+                    timeoutSeconds: 10
+                    failureThreshold: 3
+                  
+                  # Readiness probe
+                  readinessProbe:
+                    httpGet:
+                      path: /health
+                      port: 8000
+                    initialDelaySeconds: 60
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    successThreshold: 1
+                    failureThreshold: 3
+                  
+                  # Graceful shutdown
+                  lifecycle:
+                    preStop:
+                      exec:
+                        command:
+                        - /bin/sh
+                        - -c
+                        - sleep 15
+          
+          ---
+          # Service
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: vllm-service
+            namespace: inference
+            labels:
+              app: vllm
+          spec:
+            type: ClusterIP
+            selector:
+              app: vllm
+            ports:
+            - name: http
+              port: 80
+              targetPort: 8000
+              protocol: TCP
+            sessionAffinity: None
+          
+          ---
+          # HorizontalPodAutoscaler
+          apiVersion: autoscaling/v2
+          kind: HorizontalPodAutoscaler
+          metadata:
+            name: vllm-hpa
+            namespace: inference
+          spec:
+            scaleTargetRef:
+              apiVersion: apps/v1
+              kind: Deployment
+              name: vllm-server
+            minReplicas: 2
+            maxReplicas: 10
+            metrics:
+            - type: Resource
+              resource:
+                name: memory
+                target:
+                  type: Utilization
+                  averageUtilization: 80
+            behavior:
+              scaleDown:
+                stabilizationWindowSeconds: 300
+                policies:
+                - type: Percent
+                  value: 50
+                  periodSeconds: 60
+              scaleUp:
+                stabilizationWindowSeconds: 0
+                policies:
+                - type: Percent
+                  value: 100
+                  periodSeconds: 15
+          
+          ---
+          # PodDisruptionBudget
+          apiVersion: policy/v1
+          kind: PodDisruptionBudget
+          metadata:
+            name: vllm-pdb
+            namespace: inference
+          spec:
+            minAvailable: 1
+            selector:
+              matchLabels:
+                app: vllm
+          
+          ---
+          # Ingress
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: vllm-ingress
+            namespace: inference
+            annotations:
+              kubernetes.io/ingress.class: nginx
+              nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+          spec:
+            rules:
+            - host: llm-api.example.com
+              http:
+                paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: vllm-service
+                      port:
+                        number: 80
+    
+    security_implications:
+      unauthorized_model_access: |
+        **Vulnerability**: Publicly accessible model endpoints allow unauthorized users
+        to consume expensive GPU resources for free.
+        
+        **Attack scenario**: Model API exposed without authentication
+        - Attackers discover public endpoint
+        - Send unlimited requests
+        - Consume GPU quota
+        - Deny service to legitimate users
+        - Owner receives massive cloud bill
+        
+        **Defense**:
+        1. API authentication: Require API keys or OAuth tokens for all requests
+        2. Rate limiting: Limit requests per key (e.g., 100/hour free tier)
+        3. Usage quotas: Cap total tokens per user per month
+        4. IP allowlisting: Restrict access to known IPs if applicable
+        5. Geographic restrictions: Block requests from suspicious regions
+        6. Monitoring: Alert on unusual usage patterns
+        7. Cost caps: Auto-disable if costs exceed threshold
+      
+      load_balancer_bypass: |
+        **Vulnerability**: Attackers bypass load balancer to hit backend instances directly,
+        avoiding rate limits and authentication.
+        
+        **Attack scenario**: Attacker discovers backend instance IPs/URLs
+        - Bypasses load balancer
+        - Hits instances directly
+        - Avoids rate limiting enforced at LB
+        - Avoids authentication at LB
+        
+        **Defense**:
+        1. Network isolation: Backend instances not publicly accessible
+        2. Firewall rules: Only accept traffic from load balancer
+        3. Authentication at instance: Don't rely solely on LB
+        4. Instance-level rate limiting: Defense-in-depth
+        5. Request signing: LB signs requests, instances verify
+        6. Monitoring: Detect direct instance access
+      
+      instance_cascade_failure: |
+        **Vulnerability**: Failure of one instance cascades to others, causing total
+        service outage despite redundancy.
+        
+        **Attack scenario**: Attacker overloads one instance
+        - Instance becomes slow/unresponsive
+        - Health checks fail, instance removed from pool
+        - Requests redistribute to remaining instances
+        - Remaining instances also overload
+        - Cascade continues until all instances fail
+        
+        **Defense**:
+        1. Circuit breakers: Stop sending requests to failing instances
+        2. Request shedding: Drop requests when overloaded
+        3. Backpressure: Push back on upstream when capacity exceeded
+        4. Auto-scaling: Add capacity before cascade
+        5. Request prioritization: Preserve service for critical requests
+        6. Bulkheads: Isolate failure domains
+        7. Graceful degradation: Reduce quality instead of failing
+
+key_takeaways:
+  critical_concepts:
+    - concept: "Dynamic batching maximizes GPU utilization by processing multiple requests together, critical for production throughput"
+      why_it_matters: "GPUs can process 8-32 requests simultaneously. Single-request serving wastes 90%+ GPU capacity. Batching is the difference between 10 req/sec and 100 req/sec."
+    
+    - concept: "Continuous batching (vLLM) eliminates head-of-line blocking, providing 2-4x throughput improvement over static batching"
+      why_it_matters: "Static batching forces fast requests to wait for slow ones. Continuous batching allows dynamic entry/exit, maximizing throughput while minimizing latency."
+    
+    - concept: "KV-cache optimization through PagedAttention enables 2x better memory efficiency and higher batch sizes"
+      why_it_matters: "KV-cache consumes gigabytes per request. Efficient management (paging, prefix caching) doubles how many requests fit in GPU memory."
+    
+    - concept: "Load balancing with health checks and failover ensures reliability despite instance failures"
+      why_it_matters: "Single instances fail. Load balancing distributes load, health checks detect failures, failover maintains service availability."
+  
+  actionable_steps:
+    - step: "Deploy with vLLM for production serving to get continuous batching and PagedAttention optimizations"
+      verification: "Benchmark throughput vs baseline PyTorch serving. Should see 2-4x improvement with vLLM."
+    
+    - step: "Implement dynamic batching with max_batch_size=8-16 and max_wait_ms=10-20ms for balanced throughput/latency"
+      verification: "Monitor batch sizes and latency. Average batch size should be 4-8, p95 latency under 1s."
+    
+    - step: "Configure health checks (liveness and readiness) to enable automatic failover in Kubernetes/load balancers"
+      verification: "Kill instance. Load balancer should detect unhealthy state within 30s and stop routing traffic."
+    
+    - step: "Implement rate limiting (per user/IP) and request validation (prompt/max_tokens limits) to prevent DoS"
+      verification: "Attempt to exceed rate limit. Should be throttled. Send 100K token prompt. Should be rejected."
+  
+  security_principles:
+    - principle: "Defense-in-depth for access control: authentication at LB, instances, and application layer"
+      application: "Multiple security layers. API keys at LB. Token validation at instance. Request validation in application. One bypass doesn't compromise security."
+    
+    - principle: "Resource quotas at every level: per-request, per-user, per-instance, cluster-wide"
+      application: "Limit prompt length (4K), max_tokens (2K), requests/min (100), GPU time/hour (10min), cluster tokens/day (1M)."
+    
+    - principle: "Fail safely with graceful degradation: shed load, prioritize requests, maintain partial service"
+      application: "When overloaded, drop low-priority requests, reduce quality, maintain service for critical users. Never complete outage."
+    
+    - principle: "Monitor and alert on anomalies: unusual usage patterns, performance degradation, security events"
+      application: "Track request rates, latency, errors, costs. Alert on spikes, slow queries, authentication failures, unusual access patterns."
+  
+  common_mistakes:
+    - mistake: "Using static batching instead of dynamic/continuous, causing poor GPU utilization and high latency"
+      fix: "Implement dynamic batching with timeout. Better: use vLLM for continuous batching."
+    
+    - mistake: "No request timeout, allowing malicious long-running requests to tie up resources"
+      fix: "Implement timeouts at multiple levels: request queue (30s), inference (60s), HTTP (120s)."
+    
+    - mistake: "Single instance deployment with no redundancy, causing total outage on failure"
+      fix: "Deploy at least 2-3 instances behind load balancer. Health checks + failover."
+    
+    - mistake: "No input validation, allowing attackers to exhaust resources with malicious requests"
+      fix: "Validate prompt length, max_tokens, temperature ranges. Reject invalid inputs immediately."
+    
+    - mistake: "Load balancer as single authentication point, no defense if bypassed"
+      fix: "Defense-in-depth: authentication at LB AND instances. Rate limiting at both."
+  
+  integration_with_book:
+    from_section_4_11:
+      - "Memory-enabled agents (4.11) deployed with serving infrastructure (4.12)"
+      - "Stateful sessions require session affinity in load balancer"
+      - "Memory storage (Redis, DB) separate from serving layer"
+    
+    to_next_section:
+      - "Section 4.13: Quantization and model compression for deployment"
+      - "Model-level optimizations that reduce size and improve speed"
+      - "Complementary to serving optimizations from 4.12"
+  
+  looking_ahead:
+    next_concepts:
+      - "Quantization techniques (INT8, INT4, GPTQ, AWQ) (4.13)"
+      - "Horizontal scaling and distributed deployment (4.14)"
+      - "Caching strategies for cost optimization (4.15)"
+      - "Monitoring and observability (4.16)"
+    
+    skills_to_build:
+      - "Profiling and performance optimization"
+      - "Kubernetes deployment and management"
+      - "Load balancer configuration (Nginx, HAProxy)"
+      - "Monitoring with Prometheus and Grafana"
+  
+  final_thoughts: |
+    Model serving and inference optimization is where research meets production. Section
+    4.12 provides the infrastructure to run sophisticated agents at scale with acceptable
+    latency and cost.
+    
+    Key insights:
+    
+    1. **Batching is critical**: Single-request serving wastes 90%+ GPU capacity. Dynamic
+       batching achieves 8-16x better utilization. Continuous batching (vLLM) adds another
+       2-4x improvement. This isn't optional for production—it's the difference between
+       viability and bankruptcy.
+    
+    2. **vLLM is production standard**: Building serving infrastructure from scratch teaches
+       fundamentals, but production should use vLLM. PagedAttention, continuous batching,
+       and optimized kernels provide 2-4x improvement over baseline. Don't reinvent this wheel.
+    
+    3. **Memory is the bottleneck**: KV-cache consumes gigabytes per request. PagedAttention
+       and prefix caching double memory efficiency, enabling 2x higher batch sizes and
+       throughput. Optimize memory first, compute second.
+    
+    4. **Redundancy is reliability**: Single instances fail. Load balancing with health
+       checks and failover is not optional—it's the minimum for production. Start with
+       2-3 instances, scale from there.
+    
+    5. **Security requires comprehensive controls**: Authentication, rate limiting, input
+       validation, resource quotas—all essential. Defense-in-depth at every layer. One
+       exposed endpoint can cost thousands in GPU abuse.
+    
+    Moving forward, Section 4.13 advances to model-level optimization: quantization and
+    compression techniques that reduce model size 2-4x, improving inference speed and
+    reducing costs while maintaining quality. Combined with serving optimizations from
+    4.12, these enable economically viable production systems.
+    
+    Remember: Production serving is about efficiency and reliability. Optimize for both.
+    Build redundancy from day one. Monitor everything. Production incidents at scale are
+    expensive—prevent them through proper infrastructure.
+
+---
