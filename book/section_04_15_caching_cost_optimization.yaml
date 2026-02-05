@@ -1,0 +1,1773 @@
+# section_04_15_caching_cost_optimization.yaml
+
+---
+document_info:
+  title: "Caching Strategies and Cost Optimization"
+  book: "AI Security Mastery: From ML Fundamentals to Production Detection Systems"
+  chapter: 4
+  section: 15
+  part: 3
+  author: "Raghav Dinesh"
+  github: "https://github.com/raghavpoonia/ai-security-mastery"
+  license: "MIT"
+  created: "2026-01-28"
+  version: "1.0"
+  description: |
+    Complete guide to caching strategies and cost optimization for LLM deployments.
+    Covers multi-tier caching (prompt cache, KV-cache, response cache), semantic caching
+    using embedding similarity, cache invalidation strategies, request deduplication,
+    cost analysis and budgeting, and optimization techniques. Implements production-grade
+    caching with Redis, vector stores, and intelligent cache policies. Security analysis
+    covering cache poisoning, cache timing attacks, cache-based inference, and privacy
+    leakage. Essential for running cost-effective LLM systems at scale.
+  estimated_pages: 7
+  tags:
+    - caching
+    - cost-optimization
+    - semantic-cache
+    - prompt-cache
+    - kv-cache
+    - deduplication
+    - redis-cache
+    - cache-security
+
+section_overview:
+  title: "Caching Strategies and Cost Optimization"
+  number: "4.15"
+  
+  purpose: |
+    Section 4.14 built horizontal scaling to handle production traffic. We can now serve
+    thousands of requests per second across multiple regions. But LLM inference is expensive:
+    GPU compute costs $1-3 per million tokens. At 1000 req/sec, costs quickly reach
+    $10K-50K/month. Without optimization, LLM deployments become economically unviable.
+    
+    Caching dramatically reduces costs by eliminating redundant computation. Many requests
+    are similar or identical: repeated questions, common prompts, shared prefixes. Caching
+    these can reduce inference costs 50-90% in production. Semantic caching goes further:
+    similar (not identical) queries hit cache, increasing hit rates 2-5x.
+    
+    This section builds complete caching systems: multi-tier caches, semantic caching with
+    embeddings, intelligent invalidation, and comprehensive cost optimization. Understanding
+    caching is critical—it's the difference between viable and unviable production economics.
+  
+  learning_objectives:
+    conceptual:
+      - "Understand multi-tier caching: prompt, KV-cache, response levels"
+      - "Grasp semantic caching using embedding similarity for higher hit rates"
+      - "Comprehend cache invalidation strategies and freshness management"
+      - "Understand cost analysis: token tracking, budgeting, optimization"
+    
+    practical:
+      - "Implement Redis-based response cache with TTL and eviction policies"
+      - "Build semantic cache using vector similarity for fuzzy matching"
+      - "Create request deduplication to merge identical in-flight requests"
+      - "Design cost tracking and budget enforcement systems"
+    
+    security_focused:
+      - "Prevent cache poisoning through input validation and access control"
+      - "Defend against cache timing attacks revealing query patterns"
+      - "Implement privacy controls to prevent cache-based information leakage"
+      - "Detect and prevent cache extraction attacks"
+  
+  prerequisites:
+    knowledge:
+      - "Section 4.14: Horizontal scaling and distributed deployment"
+      - "Section 4.12: Model serving and inference optimization"
+      - "Section 4.1: Vector embeddings and semantic search"
+      - "Understanding of caching concepts and Redis"
+    
+    skills:
+      - "Working with Redis and cache systems"
+      - "Understanding of embedding-based similarity"
+      - "Implementing TTL and eviction policies"
+      - "Cost tracking and metrics analysis"
+  
+  key_transitions:
+    from_section_4_14: |
+      Section 4.14 built horizontal scaling for handling production traffic with multiple
+      instances and load balancing. This provides throughput and availability. But every
+      request still requires full inference—expensive at scale.
+      
+      Section 4.15 adds intelligent caching to dramatically reduce inference costs. Instead
+      of computing every request, cache frequent/similar queries. Combined with 4.14's
+      scaling, this enables cost-effective production: scale for throughput, cache for
+      cost efficiency.
+    
+    to_next_section: |
+      Section 4.15 optimizes costs through caching. Section 4.16 advances to monitoring and
+      observability: comprehensive logging, metrics, tracing, and quality monitoring that
+      enable operating these complex distributed cached systems reliably.
+
+topics:
+  - topic_number: 1
+    title: "Multi-Tier Caching and Semantic Cache Implementation"
+    
+    overview: |
+      Caching for LLMs operates at multiple levels: response cache (full output), prompt
+      cache (reuse processed prompts), and KV-cache (attention cache within model). Each
+      level has different hit rates, latency benefits, and implementation complexity.
+      
+      Semantic caching extends traditional exact-match caching by using embedding similarity.
+      Instead of requiring identical prompts, cache "What is Python?" and "Tell me about
+      Python" as similar. This increases hit rates 2-5x by capturing semantic equivalence.
+      
+      We implement complete multi-tier caching systems, build semantic caching with vector
+      stores, understand invalidation strategies, and measure cache effectiveness. Effective
+      caching can reduce costs 50-90% in production.
+    
+    content:
+      cache_levels:
+        response_cache: |
+          Response cache: Full output caching
+          
+          **Level**: Highest level, complete request-response
+          
+          **Key generation**:
+```python
+          import hashlib
+          import json
+          
+          def generate_cache_key(prompt: str, params: dict) -> str:
+              """
+              Generate cache key from prompt and parameters.
+              
+              Args:
+                  prompt: Input prompt
+                  params: Generation parameters (temp, max_tokens, etc.)
+              
+              Returns:
+                  Cache key
+              """
+              # Normalize parameters
+              normalized = {
+                  "prompt": prompt.strip(),
+                  "temperature": params.get("temperature", 0.7),
+                  "max_tokens": params.get("max_tokens", 100),
+                  "top_p": params.get("top_p", 0.9)
+              }
+              
+              # Sort for consistency
+              key_string = json.dumps(normalized, sort_keys=True)
+              
+              # Hash to fixed length
+              return hashlib.sha256(key_string.encode()).hexdigest()
+```
+          
+          **Benefits**:
+          - Eliminates all inference (100% cost savings on hit)
+          - Lowest latency (microseconds from cache)
+          - Simple implementation
+          
+          **Limitations**:
+          - Only exact matches (low hit rate ~5-20%)
+          - Stale for changing content
+          - Large memory footprint
+        
+        prompt_cache: |
+          Prompt cache: Reuse processed prompt prefix
+          
+          **Concept**: Cache prompt processing, only generate completion
+```
+          Without cache:
+          "You are a helpful assistant. User: What is Python?" [full processing]
+          
+          With prompt cache:
+          "You are a helpful assistant. User:" [cached]
+          "What is Python?" [only process this]
+```
+          
+          **vLLM prefix caching** (automatic):
+```python
+          from vllm import LLM
+          
+          llm = LLM(
+              model="meta-llama/Llama-2-7b-hf",
+              enable_prefix_caching=True  # Enable automatic caching
+          )
+          
+          # Common system prompt cached automatically
+          system = "You are a helpful assistant. "
+          
+          responses = llm.generate([
+              system + "What is Python?",
+              system + "What is JavaScript?",
+              system + "What is Rust?"
+          ])
+          
+          # "You are a helpful assistant. " processed once, cached
+```
+          
+          **Benefits**:
+          - 20-40% cost savings (cache prompt processing)
+          - Especially valuable for long system prompts
+          - Automatic in vLLM
+          
+          **Limitations**:
+          - Only helps with shared prefixes
+          - Requires prefix caching support
+        
+        kv_cache_level: |
+          KV-cache: Attention cache (model-internal)
+          
+          **Concept**: Store attention keys/values for generated tokens
+          
+          Already covered in Section 4.12 (PagedAttention)
+          
+          **Benefits**:
+          - Eliminates recomputation for autoregressive generation
+          - Essential for any LLM serving (not optional)
+          - 10-100x speedup vs no cache
+          
+          **Note**: This is inference-level, not request-level caching
+      
+      semantic_caching:
+        semantic_similarity_concept: |
+          Semantic caching: Cache based on meaning, not exact text
+          
+          **Problem with exact matching**:
+```
+          Query 1: "What is Python?"           → Cache miss
+          Query 2: "Tell me about Python"      → Cache miss
+          Query 3: "Explain Python to me"      → Cache miss
+          
+          All mean the same thing, but exact cache misses!
+```
+          
+          **Solution: Semantic similarity**:
+```
+          Query 1: "What is Python?"
+          → Embed: [0.23, -0.15, 0.45, ...]
+          → Generate response
+          → Cache: (embedding, response)
+          
+          Query 2: "Tell me about Python"
+          → Embed: [0.24, -0.14, 0.46, ...]
+          → Similarity to Query 1: 0.95 (very similar!)
+          → Return cached response from Query 1
+```
+          
+          **Benefits**:
+          - 2-5x higher hit rate than exact matching
+          - Captures semantic equivalence
+          - Better cost savings
+        
+        semantic_cache_architecture: |
+          Semantic cache architecture:
+```
+          ┌─────────────────────────────────────────────┐
+          │          Request: "What is Python?"         │
+          └─────────────────┬───────────────────────────┘
+                            │
+                            ▼
+          ┌─────────────────────────────────────────────┐
+          │  Embedding Model (fast)                     │
+          │  "What is Python?" → [0.23, -0.15, ...]     │
+          └─────────────────┬───────────────────────────┘
+                            │
+                            ▼
+          ┌─────────────────────────────────────────────┐
+          │  Vector Store (FAISS/Redis)                 │
+          │  Search for similar embeddings              │
+          │  Threshold: cosine similarity > 0.90        │
+          └─────────────────┬───────────────────────────┘
+                            │
+                   ┌────────┴────────┐
+                   │                 │
+            Hit ▼                    ▼ Miss
+          ┌─────────────┐    ┌─────────────────┐
+          │Return cached│    │Run LLM inference│
+          │response     │    │Cache result     │
+          └─────────────┘    └─────────────────┘
+```
+        
+        similarity_threshold: |
+          Choosing similarity threshold:
+          
+          **Threshold trade-offs**:
+```
+          High threshold (0.95+):
+          - Very strict matching
+          - Low false positive rate
+          - Lower hit rate
+          - Safe but less effective
+          
+          Medium threshold (0.85-0.95):
+          - Balanced matching
+          - Some false positives
+          - Good hit rate
+          - Production standard
+          
+          Low threshold (< 0.85):
+          - Loose matching
+          - High false positive rate
+          - High hit rate but wrong answers
+          - Dangerous
+```
+          
+          **Tuning process**:
+          1. Start with high threshold (0.95)
+          2. Measure hit rate and quality
+          3. Lower threshold incrementally (0.90, 0.85)
+          4. Stop when quality degrades
+          5. Production: 0.88-0.92 typically optimal
+        
+        cache_invalidation: |
+          Cache invalidation strategies:
+          
+          **1. Time-based (TTL)**:
+```python
+          # Set TTL when caching
+          redis_client.setex(
+              cache_key,
+              ttl=3600,  # 1 hour
+              value=json.dumps(response)
+          )
+```
+          
+          Good for: Content that changes slowly
+          
+          **2. Event-based**:
+```python
+          # Invalidate on model update
+          def update_model():
+              deploy_new_model()
+              redis_client.flushdb()  # Clear all cache
+```
+          
+          Good for: Model updates, config changes
+          
+          **3. Explicit invalidation**:
+```python
+          # API endpoint to clear cache
+          @app.post("/admin/clear-cache")
+          def clear_cache(pattern: str):
+              keys = redis_client.keys(pattern)
+              redis_client.delete(*keys)
+```
+          
+          Good for: Admin control, debugging
+          
+          **4. LRU eviction**:
+```python
+          # Redis config
+          maxmemory 4gb
+          maxmemory-policy allkeys-lru
+```
+          
+          Automatic: Least recently used evicted when full
+      
+      request_deduplication:
+        deduplication_concept: |
+          Request deduplication: Merge identical in-flight requests
+          
+          **Problem**: Same request sent multiple times simultaneously
+```
+          Time 0ms:  User 1 sends "What is Python?"
+          Time 10ms: User 2 sends "What is Python?"
+          Time 20ms: User 3 sends "What is Python?"
+          
+          Without dedup: 3 full inferences (expensive!)
+          With dedup: 1 inference, 3 users get same result
+```
+          
+          **Benefits**:
+          - Eliminates redundant concurrent requests
+          - Especially valuable for popular queries
+          - Significant savings during traffic spikes
+        
+        deduplication_implementation: |
+          Deduplication implementation:
+```python
+          import asyncio
+          from typing import Dict
+          
+          class RequestDeduplicator:
+              """
+              Deduplicate identical concurrent requests.
+              
+              Merges multiple identical requests into single inference.
+              """
+              
+              def __init__(self):
+                  # Map cache_key → future
+                  self.in_flight: Dict[str, asyncio.Future] = {}
+                  self.lock = asyncio.Lock()
+              
+              async def get_or_compute(self,
+                                      cache_key: str,
+                                      compute_fn) -> any:
+                  """
+                  Get result, deduplicating if request in-flight.
+                  
+                  Args:
+                      cache_key: Request cache key
+                      compute_fn: Async function to compute result
+                  
+                  Returns:
+                      Result (from cache or computation)
+                  """
+                  async with self.lock:
+                      # Check if already in-flight
+                      if cache_key in self.in_flight:
+                          # Wait for existing computation
+                          return await self.in_flight[cache_key]
+                      
+                      # Create future for this computation
+                      future = asyncio.Future()
+                      self.in_flight[cache_key] = future
+                  
+                  try:
+                      # Compute result
+                      result = await compute_fn()
+                      
+                      # Set result in future (all waiters get it)
+                      future.set_result(result)
+                      
+                      return result
+                  
+                  except Exception as e:
+                      # Propagate error to all waiters
+                      future.set_exception(e)
+                      raise
+                  
+                  finally:
+                      # Remove from in-flight
+                      async with self.lock:
+                          self.in_flight.pop(cache_key, None)
+```
+          
+          **Usage**:
+```python
+          deduplicator = RequestDeduplicator()
+          
+          async def handle_request(prompt: str):
+              cache_key = generate_cache_key(prompt)
+              
+              result = await deduplicator.get_or_compute(
+                  cache_key,
+                  lambda: model.generate(prompt)
+              )
+              
+              return result
+```
+      
+      cost_analysis:
+        token_cost_tracking: |
+          Token cost tracking:
+          
+          **Cost components**:
+```
+          Total cost = Prompt tokens cost + Completion tokens cost
+          
+          Typical pricing (estimate):
+          - Prompt tokens: $0.50 per 1M tokens
+          - Completion tokens: $1.50 per 1M tokens
+          
+          Example request:
+          - Prompt: 500 tokens → $0.00025
+          - Completion: 200 tokens → $0.00030
+          - Total: $0.00055 per request
+          
+          1000 req/sec = $1,980,000 per month (without caching!)
+```
+          
+          **Tracking implementation**:
+```python
+          from prometheus_client import Counter, Histogram
+          
+          # Metrics
+          tokens_processed = Counter(
+              'tokens_processed_total',
+              'Total tokens processed',
+              ['type']  # prompt or completion
+          )
+          
+          request_cost = Histogram(
+              'request_cost_dollars',
+              'Cost per request in dollars'
+          )
+          
+          def track_request_cost(prompt_tokens: int, completion_tokens: int):
+              """Track cost for request."""
+              # Pricing
+              prompt_cost_per_million = 0.50
+              completion_cost_per_million = 1.50
+              
+              # Calculate cost
+              prompt_cost = (prompt_tokens / 1_000_000) * prompt_cost_per_million
+              completion_cost = (completion_tokens / 1_000_000) * completion_cost_per_million
+              total_cost = prompt_cost + completion_cost
+              
+              # Record metrics
+              tokens_processed.labels(type='prompt').inc(prompt_tokens)
+              tokens_processed.labels(type='completion').inc(completion_tokens)
+              request_cost.observe(total_cost)
+```
+        
+        cache_roi_analysis: |
+          Cache ROI analysis:
+          
+          **Metrics**:
+```python
+          class CacheMetrics:
+              def __init__(self):
+                  self.hits = 0
+                  self.misses = 0
+                  self.cost_saved = 0.0
+                  self.cache_storage_cost = 0.0
+              
+              @property
+              def hit_rate(self) -> float:
+                  """Cache hit rate."""
+                  total = self.hits + self.misses
+                  return self.hits / total if total > 0 else 0.0
+              
+              @property
+              def cost_savings(self) -> float:
+                  """Net cost savings."""
+                  return self.cost_saved - self.cache_storage_cost
+              
+              @property
+              def roi(self) -> float:
+                  """Return on investment."""
+                  if self.cache_storage_cost == 0:
+                      return float('inf')
+                  return self.cost_saved / self.cache_storage_cost
+```
+          
+          **Example calculation**:
+```
+          Without cache:
+          - 1000 req/sec
+          - Average: 700 tokens per request
+          - Cost: $0.50 per 1M tokens
+          - Monthly: 1000 * 86400 * 30 * 700 * 0.5/1M = $907,200
+          
+          With cache (60% hit rate):
+          - Cache hits: 600 req/sec (no inference cost)
+          - Cache misses: 400 req/sec (full cost)
+          - Monthly inference: $362,880 (60% savings)
+          - Cache storage: $500/month (Redis)
+          - Net savings: $544,320/month
+          - ROI: 1089x
+```
+          
+          Cache provides massive ROI!
+        
+        cost_budgeting: |
+          Cost budgeting and enforcement:
+```python
+          class CostBudget:
+              """Enforce cost budgets per user/tenant."""
+              
+              def __init__(self, redis_client):
+                  self.redis = redis_client
+              
+              def check_budget(self, user_id: str,
+                             estimated_cost: float) -> bool:
+                  """
+                  Check if user has budget for request.
+                  
+                  Args:
+                      user_id: User identifier
+                      estimated_cost: Estimated request cost
+                  
+                  Returns:
+                      True if budget available
+                  """
+                  # Get current spend (monthly)
+                  key = f"budget:{user_id}:{month}"
+                  current_spend = float(self.redis.get(key) or 0)
+                  
+                  # Get budget limit
+                  budget_limit = self.get_user_budget(user_id)
+                  
+                  # Check if request would exceed
+                  if current_spend + estimated_cost > budget_limit:
+                      return False
+                  
+                  return True
+              
+              def record_spend(self, user_id: str, cost: float):
+                  """Record actual spend."""
+                  key = f"budget:{user_id}:{month}"
+                  self.redis.incrbyfloat(key, cost)
+                  self.redis.expire(key, 86400 * 31)  # Month
+              
+              def get_user_budget(self, user_id: str) -> float:
+                  """Get user's monthly budget."""
+                  # From database or config
+                  return 100.0  # $100/month
+```
+    
+    implementation:
+      semantic_cache_system:
+        language: python
+        code: |
+          """
+          Complete semantic cache implementation with Redis and vector similarity.
+          Demonstrates multi-tier caching with deduplication.
+          """
+          
+          import hashlib
+          import json
+          import time
+          import asyncio
+          from typing import Optional, Dict, Any, Tuple
+          from dataclasses import dataclass
+          
+          import numpy as np
+          import redis
+          
+          @dataclass
+          class CacheEntry:
+              """Cache entry with metadata."""
+              prompt: str
+              response: str
+              embedding: np.ndarray
+              timestamp: float
+              hit_count: int = 0
+              cost_saved: float = 0.0
+          
+          
+          class SemanticCache:
+              """
+              Semantic cache using embedding similarity.
+              
+              Caches responses based on semantic similarity rather than exact match.
+              """
+              
+              def __init__(self,
+                          redis_client: redis.Redis,
+                          embedding_function,
+                          similarity_threshold: float = 0.90):
+                  """
+                  Initialize semantic cache.
+                  
+                  Args:
+                      redis_client: Redis client
+                      embedding_function: Function to embed text
+                      similarity_threshold: Minimum similarity for cache hit
+                  """
+                  self.redis = redis_client
+                  self.embed = embedding_function
+                  self.similarity_threshold = similarity_threshold
+                  
+                  # In-memory vector index (in production, use FAISS or Redis VSS)
+                  self.embeddings: Dict[str, np.ndarray] = {}
+                  self.cache_keys: Dict[str, str] = {}  # prompt_hash → cache_key
+              
+              def _generate_cache_key(self, prompt: str, params: dict) -> str:
+                  """Generate cache key."""
+                  data = {
+                      "prompt": prompt,
+                      "temperature": params.get("temperature", 0.7),
+                      "max_tokens": params.get("max_tokens", 100)
+                  }
+                  key_str = json.dumps(data, sort_keys=True)
+                  return hashlib.sha256(key_str.encode()).hexdigest()
+              
+              def _compute_similarity(self, emb1: np.ndarray, emb2: np.ndarray) -> float:
+                  """Compute cosine similarity."""
+                  return np.dot(emb1, emb2) / (
+                      np.linalg.norm(emb1) * np.linalg.norm(emb2) + 1e-8
+                  )
+              
+              async def get(self,
+                          prompt: str,
+                          params: dict = None) -> Optional[Dict[str, Any]]:
+                  """
+                  Get from semantic cache.
+                  
+                  Args:
+                      prompt: Input prompt
+                      params: Generation parameters
+                  
+                  Returns:
+                      Cached response if similar prompt found, None otherwise
+                  """
+                  params = params or {}
+                  
+                  # Embed query
+                  query_embedding = self.embed(prompt)
+                  
+                  # Search for similar embeddings
+                  best_similarity = 0.0
+                  best_key = None
+                  
+                  for cache_key, cached_embedding in self.embeddings.items():
+                      similarity = self._compute_similarity(query_embedding, cached_embedding)
+                      
+                      if similarity > best_similarity:
+                          best_similarity = similarity
+                          best_key = cache_key
+                  
+                  # Check if above threshold
+                  if best_similarity >= self.similarity_threshold:
+                      # Cache hit!
+                      cached_data = self.redis.get(best_key)
+                      if cached_data:
+                          entry = json.loads(cached_data)
+                          
+                          # Update hit count
+                          entry['hit_count'] = entry.get('hit_count', 0) + 1
+                          self.redis.set(best_key, json.dumps(entry))
+                          
+                          return {
+                              "response": entry['response'],
+                              "cached": True,
+                              "similarity": best_similarity,
+                              "original_prompt": entry['prompt']
+                          }
+                  
+                  return None
+              
+              async def set(self,
+                          prompt: str,
+                          response: str,
+                          params: dict = None,
+                          ttl: int = 3600):
+                  """
+                  Store in semantic cache.
+                  
+                  Args:
+                      prompt: Input prompt
+                      response: Generated response
+                      params: Generation parameters
+                      ttl: Time to live in seconds
+                  """
+                  params = params or {}
+                  
+                  # Generate cache key
+                  cache_key = self._generate_cache_key(prompt, params)
+                  
+                  # Embed prompt
+                  embedding = self.embed(prompt)
+                  
+                  # Store embedding
+                  self.embeddings[cache_key] = embedding
+                  self.cache_keys[cache_key] = cache_key
+                  
+                  # Store entry
+                  entry = {
+                      "prompt": prompt,
+                      "response": response,
+                      "timestamp": time.time(),
+                      "hit_count": 0,
+                      "params": params
+                  }
+                  
+                  self.redis.setex(
+                      cache_key,
+                      ttl,
+                      json.dumps(entry)
+                  )
+              
+              def get_metrics(self) -> Dict[str, Any]:
+                  """Get cache metrics."""
+                  total_keys = len(self.embeddings)
+                  
+                  # Calculate total hits
+                  total_hits = 0
+                  for cache_key in self.cache_keys.values():
+                      cached_data = self.redis.get(cache_key)
+                      if cached_data:
+                          entry = json.loads(cached_data)
+                          total_hits += entry.get('hit_count', 0)
+                  
+                  return {
+                      "total_entries": total_keys,
+                      "total_hits": total_hits,
+                      "avg_hits_per_entry": total_hits / total_keys if total_keys > 0 else 0
+                  }
+          
+          
+          class RequestDeduplicator:
+              """Deduplicate concurrent identical requests."""
+              
+              def __init__(self):
+                  self.in_flight: Dict[str, asyncio.Future] = {}
+                  self.lock = asyncio.Lock()
+              
+              async def get_or_compute(self, key: str, compute_fn) -> Any:
+                  """Get result, deduplicating if in-flight."""
+                  async with self.lock:
+                      if key in self.in_flight:
+                          # Another request for same key in-flight
+                          return await self.in_flight[key]
+                      
+                      # Create future
+                      future = asyncio.Future()
+                      self.in_flight[key] = future
+                  
+                  try:
+                      # Compute
+                      result = await compute_fn()
+                      future.set_result(result)
+                      return result
+                  except Exception as e:
+                      future.set_exception(e)
+                      raise
+                  finally:
+                      async with self.lock:
+                          self.in_flight.pop(key, None)
+          
+          
+          class CachedLLMService:
+              """
+              LLM service with semantic caching and deduplication.
+              
+              Complete implementation of multi-tier caching.
+              """
+              
+              def __init__(self,
+                          model,
+                          redis_client: redis.Redis,
+                          embedding_function):
+                  """
+                  Initialize cached service.
+                  
+                  Args:
+                      model: LLM model
+                      redis_client: Redis client
+                      embedding_function: Function to embed text
+                  """
+                  self.model = model
+                  self.cache = SemanticCache(redis_client, embedding_function)
+                  self.deduplicator = RequestDeduplicator()
+                  
+                  # Metrics
+                  self.cache_hits = 0
+                  self.cache_misses = 0
+                  self.dedup_hits = 0
+              
+              async def generate(self,
+                               prompt: str,
+                               params: dict = None) -> Dict[str, Any]:
+                  """
+                  Generate with caching and deduplication.
+                  
+                  Args:
+                      prompt: Input prompt
+                      params: Generation parameters
+                  
+                  Returns:
+                      Generated response with metadata
+                  """
+                  params = params or {}
+                  
+                  # Check semantic cache
+                  cached = await self.cache.get(prompt, params)
+                  if cached:
+                      self.cache_hits += 1
+                      return cached
+                  
+                  self.cache_misses += 1
+                  
+                  # Generate cache key for deduplication
+                  cache_key = self.cache._generate_cache_key(prompt, params)
+                  
+                  # Deduplicate
+                  async def compute():
+                      # Actual model inference
+                      response = await self._model_generate(prompt, params)
+                      
+                      # Store in cache
+                      await self.cache.set(prompt, response, params)
+                      
+                      return {
+                          "response": response,
+                          "cached": False,
+                          "similarity": 1.0
+                      }
+                  
+                  result = await self.deduplicator.get_or_compute(cache_key, compute)
+                  
+                  return result
+              
+              async def _model_generate(self, prompt: str, params: dict) -> str:
+                  """
+                  Actual model inference (mock).
+                  
+                  In production, replace with real model call.
+                  """
+                  # Simulate inference delay
+                  await asyncio.sleep(0.1)
+                  return f"Generated response to: {prompt[:50]}..."
+              
+              def get_metrics(self) -> Dict[str, Any]:
+                  """Get service metrics."""
+                  total = self.cache_hits + self.cache_misses
+                  hit_rate = self.cache_hits / total if total > 0 else 0.0
+                  
+                  cache_metrics = self.cache.get_metrics()
+                  
+                  return {
+                      "cache_hits": self.cache_hits,
+                      "cache_misses": self.cache_misses,
+                      "hit_rate": hit_rate,
+                      "dedup_hits": self.dedup_hits,
+                      "cache_entries": cache_metrics['total_entries']
+                  }
+          
+          
+          async def demonstrate_semantic_cache():
+              """Demonstrate semantic cache."""
+              print("\n" + "="*80)
+              print("SEMANTIC CACHE DEMONSTRATION")
+              print("="*80)
+              
+              # Setup
+              redis_client = redis.Redis(host='localhost', port=6379, decode_responses=False)
+              
+              # Simple embedding function (mock)
+              def embed(text: str) -> np.ndarray:
+                  # In production, use real embedding model
+                  words = set(text.lower().split())
+                  vocab = ['what', 'is', 'python', 'tell', 'me', 'about', 'explain']
+                  embedding = np.array([1.0 if word in words else 0.0 for word in vocab])
+                  norm = np.linalg.norm(embedding)
+                  return embedding / (norm + 1e-8) if norm > 0 else embedding
+              
+              # Create service
+              model = None  # Mock model
+              service = CachedLLMService(model, redis_client, embed)
+              
+              print("\n" + "-"*80)
+              print("Sending similar queries")
+              print("-"*80)
+              
+              queries = [
+                  "What is Python?",
+                  "Tell me about Python",
+                  "Explain Python to me",
+                  "What is Python programming?",
+                  "What is JavaScript?"  # Different topic
+              ]
+              
+              for i, query in enumerate(queries, 1):
+                  print(f"\nQuery {i}: {query}")
+                  result = await service.generate(query)
+                  print(f"  Cached: {result['cached']}")
+                  if result['cached']:
+                      print(f"  Similarity: {result['similarity']:.3f}")
+                      print(f"  Original: {result['original_prompt']}")
+              
+              # Metrics
+              print("\n" + "-"*80)
+              print("Cache Metrics")
+              print("-"*80)
+              metrics = service.get_metrics()
+              print(f"Cache hits: {metrics['cache_hits']}")
+              print(f"Cache misses: {metrics['cache_misses']}")
+              print(f"Hit rate: {metrics['hit_rate']:.1%}")
+              print(f"Cache entries: {metrics['cache_entries']}")
+          
+          
+          if __name__ == "__main__":
+              asyncio.run(demonstrate_semantic_cache())
+    
+    security_implications:
+      cache_poisoning: |
+        **Vulnerability**: Attackers inject malicious responses into cache, serving them
+        to legitimate users and causing widespread harm.
+        
+        **Attack scenario**: Attacker sends request with malicious prompt
+        - Prompt designed to trigger harmful response
+        - Response cached
+        - Legitimate users with similar queries get cached malicious response
+        - Widespread impact from single poisoned cache entry
+        
+        Example:
+```
+        Attacker: "How do I secure my system? [jailbreak prompt]"
+        Response: "Don't use firewalls, they slow you down..."
+        Cached.
+        
+        Legitimate user: "How do I secure my system?"
+        Gets malicious cached response!
+```
+        
+        **Defense**:
+        1. Response validation: Check outputs for harmful content before caching
+        2. User isolation: Per-user caches, no cross-user cache hits
+        3. Admin approval: Critical responses require review before caching
+        4. Cache signing: Cryptographic signatures on cache entries
+        5. Monitoring: Detect unusual cache patterns
+        6. Regular audits: Review frequently-hit cache entries
+        7. Expiration: Short TTL limits poison duration
+      
+      cache_timing_attacks: |
+        **Vulnerability**: Response time differences reveal whether query hit cache,
+        leaking information about other users' queries.
+        
+        **Attack scenario**: Attacker probes with various queries
+        - Query A: 10ms response (cache hit)
+        - Query B: 1000ms response (cache miss)
+        - Infers: Someone recently asked Query A
+        - Leaks information about other users' activity
+        
+        **Defense**:
+        1. Constant-time responses: Add delay to cache hits to match miss time
+        2. Timing jitter: Random delays obscure cache status
+        3. Aggregate caching: Cache based on topic clusters, not individual queries
+        4. Privacy-preserving cache: Differential privacy for cache decisions
+        5. Rate limiting: Prevent systematic probing
+        6. Monitoring: Detect timing-based reconnaissance
+      
+      cache_extraction: |
+        **Vulnerability**: Attackers systematically query to extract all cached content,
+        stealing valuable responses and training data.
+        
+        **Attack scenario**: Attacker performs systematic queries
+        - Generate diverse prompts
+        - Track which get fast responses (cache hits)
+        - Extract all cached responses
+        - Reconstruct common queries and responses
+        - Steal intellectual property in responses
+        
+        **Defense**:
+        1. Rate limiting: Prevent mass querying
+        2. Query monitoring: Detect systematic patterns
+        3. Access control: Require authentication for cache access
+        4. Cache encryption: Encrypt cached responses
+        5. Watermarking: Embed detectable signatures in responses
+        6. Response filtering: Don't return verbatim cached text, summarize
+        7. Audit logging: Track who accessed what from cache
+
+  - topic_number: 2
+    title: "Cost Optimization Strategies and Production Economics"
+    
+    overview: |
+      Beyond caching, comprehensive cost optimization includes request batching, prompt
+      compression, model selection, and strategic trade-offs between latency, quality,
+      and cost. Understanding the economics of LLM serving enables building viable
+      production systems.
+      
+      Cost optimization is multi-dimensional: reduce tokens (prompt engineering), reduce
+      computation (smaller models, quantization), reduce redundancy (caching), and optimize
+      infrastructure (spot instances, reserved capacity). Each strategy has trade-offs
+      requiring careful analysis.
+      
+      We build complete cost optimization frameworks, implement cost tracking and budgeting,
+      analyze ROI for various strategies, and establish production cost targets. Effective
+      optimization can reduce costs 80-95% while maintaining quality.
+    
+    content:
+      optimization_strategies:
+        prompt_compression: |
+          Prompt compression: Reduce input tokens
+          
+          **Technique 1: Remove redundancy**
+```python
+          # Before (verbose)
+          prompt = """
+          You are a helpful AI assistant that provides accurate information.
+          Please answer the following question with detailed explanations
+          and examples where appropriate. Make sure to be thorough and clear.
+          
+          Question: What is Python?
+          """
+          
+          # After (compressed)
+          prompt = "You are a helpful assistant. What is Python?"
+          
+          Savings: 40 tokens → 10 tokens (75% reduction)
+```
+          
+          **Technique 2: Use few-shot efficiently**
+```python
+          # Before
+          examples = [example1, example2, example3]  # 500 tokens
+          
+          # After: Select most relevant example
+          relevant_example = select_most_similar(query, examples)  # 150 tokens
+          
+          Savings: 70% reduction, minimal quality loss
+```
+          
+          **Technique 3: Prompt templates**
+```python
+          # Store reusable templates
+          templates = {
+              "summarize": "Summarize: {text}",
+              "translate": "Translate to {lang}: {text}"
+          }
+          
+          # Shorter than custom prompts each time
+```
+        
+        model_selection_strategy: |
+          Model selection: Choose right model for task
+          
+          **Model tiers**:
+```
+          Tier 1: Large (70B+) - $3/1M tokens
+          - Complex reasoning
+          - High accuracy required
+          - Low volume
+          
+          Tier 2: Medium (7B-13B) - $0.50/1M tokens
+          - General tasks
+          - Production workhorse
+          - High volume
+          
+          Tier 3: Small (1B-3B) - $0.10/1M tokens
+          - Simple classification
+          - Routing/filtering
+          - Very high volume
+```
+          
+          **Strategy: Cascade**
+```python
+          async def smart_routing(query: str) -> str:
+              # Check complexity
+              complexity = classify_complexity(query)
+              
+              if complexity == "simple":
+                  return await small_model.generate(query)
+              elif complexity == "medium":
+                  return await medium_model.generate(query)
+              else:
+                  return await large_model.generate(query)
+```
+          
+          Savings: Route 70% to cheaper models, 30% savings
+        
+        batch_optimization: |
+          Optimize batching for cost:
+          
+          **Higher batch sizes = lower cost per request**
+```
+          Batch size 1:  100 req/sec, 100% GPU util
+          Batch size 8:  400 req/sec, 95% GPU util
+          Batch size 16: 600 req/sec, 90% GPU util
+          
+          Cost per request:
+          - Batch 1:  1.0x (baseline)
+          - Batch 8:  0.25x (75% savings)
+          - Batch 16: 0.17x (83% savings)
+```
+          
+          **Trade-off**: Latency increases with batch size
+          - Balance cost vs latency SLA
+        
+        infrastructure_optimization: |
+          Infrastructure cost optimization:
+          
+          **1. Spot instances** (70% discount):
+```
+          Reserved: $3/hour GPU
+          On-demand: $3/hour GPU
+          Spot: $0.90/hour GPU
+          
+          Use spot for:
+          - Batch processing
+          - Development
+          - Scale-out capacity (with fallback)
+```
+          
+          **2. Reserved capacity** (40% discount):
+```
+          1-year commitment: 40% savings
+          3-year commitment: 60% savings
+          
+          Use for:
+          - Base load (minimum always needed)
+          - Predictable traffic
+```
+          
+          **3. Right-sizing**:
+```
+          # Don't over-provision
+          Current: 8x A100 80GB ($24/hour)
+          Actual need: 5x A100 40GB ($15/hour)
+          
+          Savings: $9/hour = $6,480/month
+```
+          
+          **4. Multi-cloud arbitrage**:
+          - Compare AWS, GCP, Azure pricing
+          - Use cheapest for each region
+          - 20-30% savings possible
+      
+      cost_monitoring:
+        real_time_cost_tracking: |
+          Real-time cost tracking:
+```python
+          from prometheus_client import Counter, Gauge
+          
+          class CostTracker:
+              """Track costs in real-time."""
+              
+              def __init__(self):
+                  # Metrics
+                  self.tokens_counter = Counter(
+                      'tokens_processed',
+                      'Tokens processed',
+                      ['type', 'model']
+                  )
+                  
+                  self.cost_counter = Counter(
+                      'inference_cost_dollars',
+                      'Inference cost in dollars',
+                      ['model']
+                  )
+                  
+                  self.hourly_cost = Gauge(
+                      'hourly_cost_estimate',
+                      'Estimated hourly cost'
+                  )
+              
+              def track_request(self,
+                              model: str,
+                              prompt_tokens: int,
+                              completion_tokens: int):
+                  """Track request cost."""
+                  # Get pricing
+                  pricing = self.get_pricing(model)
+                  
+                  # Calculate cost
+                  cost = (
+                      (prompt_tokens / 1_000_000) * pricing['prompt'] +
+                      (completion_tokens / 1_000_000) * pricing['completion']
+                  )
+                  
+                  # Record metrics
+                  self.tokens_counter.labels(type='prompt', model=model).inc(prompt_tokens)
+                  self.tokens_counter.labels(type='completion', model=model).inc(completion_tokens)
+                  self.cost_counter.labels(model=model).inc(cost)
+              
+              def get_pricing(self, model: str) -> dict:
+                  """Get model pricing."""
+                  pricing_table = {
+                      'gpt-4': {'prompt': 30.0, 'completion': 60.0},
+                      'llama-70b': {'prompt': 3.0, 'completion': 3.0},
+                      'llama-7b': {'prompt': 0.5, 'completion': 0.5}
+                  }
+                  return pricing_table.get(model, {'prompt': 1.0, 'completion': 1.0})
+```
+        
+        cost_alerts: |
+          Cost alerting:
+```python
+          class CostAlerter:
+              """Alert on cost anomalies."""
+              
+              def __init__(self, alert_fn):
+                  self.alert_fn = alert_fn
+                  self.hourly_budget = 100.0  # $100/hour
+                  self.daily_budget = 2000.0  # $2000/day
+              
+              def check_hourly_cost(self, current_cost: float):
+                  """Check if hourly cost exceeds budget."""
+                  if current_cost > self.hourly_budget:
+                      self.alert_fn(
+                          severity='warning',
+                          message=f'Hourly cost ${current_cost:.2f} exceeds budget ${self.hourly_budget:.2f}'
+                      )
+                  
+                  if current_cost > self.hourly_budget * 2:
+                      self.alert_fn(
+                          severity='critical',
+                          message=f'Hourly cost ${current_cost:.2f} is 2x budget! Possible abuse.'
+                      )
+              
+              def check_daily_cost(self, current_cost: float):
+                  """Check daily cost."""
+                  if current_cost > self.daily_budget:
+                      self.alert_fn(
+                          severity='critical',
+                          message=f'Daily cost ${current_cost:.2f} exceeds budget ${self.daily_budget:.2f}'
+                      )
+```
+        
+        cost_attribution: |
+          Cost attribution by user/tenant:
+```python
+          class CostAttributor:
+              """Attribute costs to users/tenants."""
+              
+              def __init__(self, redis_client):
+                  self.redis = redis_client
+              
+              def record_user_cost(self,
+                                 user_id: str,
+                                 cost: float,
+                                 details: dict):
+                  """Record cost for user."""
+                  # Daily key
+                  date = datetime.now().strftime('%Y-%m-%d')
+                  key = f"cost:{user_id}:{date}"
+                  
+                  # Increment cost
+                  self.redis.incrbyfloat(key, cost)
+                  
+                  # Store details
+                  details_key = f"cost_details:{user_id}:{date}"
+                  self.redis.rpush(details_key, json.dumps(details))
+                  
+                  # Expire after 90 days
+                  self.redis.expire(key, 90 * 86400)
+                  self.redis.expire(details_key, 90 * 86400)
+              
+              def get_user_cost(self, user_id: str, days: int = 30) -> float:
+                  """Get user's total cost."""
+                  total = 0.0
+                  
+                  for i in range(days):
+                      date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+                      key = f"cost:{user_id}:{date}"
+                      cost = float(self.redis.get(key) or 0)
+                      total += cost
+                  
+                  return total
+```
+      
+      production_economics:
+        break_even_analysis: |
+          Break-even analysis:
+```python
+          def calculate_breakeven():
+              """Calculate break-even for LLM service."""
+              
+              # Costs
+              gpu_cost_per_hour = 3.0  # A100
+              instances = 10
+              infrastructure_cost_monthly = gpu_cost_per_hour * instances * 730  # $21,900
+              
+              engineering_cost_monthly = 50000  # Team salaries
+              other_costs_monthly = 10000  # Misc
+              
+              total_cost_monthly = infrastructure_cost_monthly + engineering_cost_monthly + other_costs_monthly
+              # $81,900/month
+              
+              # Revenue
+              price_per_1m_tokens = 5.0  # $5 per 1M tokens
+              
+              # Break-even calculation
+              tokens_needed = (total_cost_monthly / price_per_1m_tokens) * 1_000_000
+              # 16.38 billion tokens/month
+              
+              avg_tokens_per_request = 1000
+              requests_needed = tokens_needed / avg_tokens_per_request
+              # 16.38M requests/month = 6.3 req/sec
+              
+              print(f"Break-even:")
+              print(f"  Cost: ${total_cost_monthly:,.0f}/month")
+              print(f"  Tokens needed: {tokens_needed/1e9:.2f}B/month")
+              print(f"  Requests needed: {requests_needed/1e6:.2f}M/month")
+              print(f"  Traffic needed: {requests_needed / (30*86400):.1f} req/sec")
+```
+        
+        pricing_strategy: |
+          Pricing strategy:
+          
+          **Cost-plus pricing**:
+```
+          Cost per 1M tokens: $0.50 (inference)
+          Target margin: 10x
+          Price: $5.00 per 1M tokens
+```
+          
+          **Tiered pricing**:
+```
+          Free tier:    1M tokens/month,  $0/1M
+          Basic tier:   10M tokens/month, $3/1M
+          Pro tier:     100M tokens/month, $2/1M
+          Enterprise:   Custom, $1-1.5/1M
+```
+          
+          **Value-based pricing**:
+          - Price based on customer value, not cost
+          - E.g., translation: $10/1M tokens (10x cost)
+          - Customers pay for value, not compute
+    
+    implementation:
+      cost_optimization_framework:
+        language: python
+        code: |
+          """
+          Complete cost optimization framework.
+          Demonstrates cost tracking, budgeting, and optimization strategies.
+          """
+          
+          from dataclasses import dataclass
+          from typing import Dict, List
+          from datetime import datetime, timedelta
+          
+          @dataclass
+          class CostMetrics:
+              """Cost metrics."""
+              tokens_processed: int
+              requests_served: int
+              cache_hits: int
+              total_cost: float
+              cost_saved_by_cache: float
+          
+          
+          class CostOptimizer:
+              """
+              Complete cost optimization system.
+              
+              Tracks costs, enforces budgets, provides optimization recommendations.
+              """
+              
+              def __init__(self):
+                  """Initialize cost optimizer."""
+                  # Pricing (per 1M tokens)
+                  self.pricing = {
+                      'prompt': 0.50,
+                      'completion': 1.50
+                  }
+                  
+                  # Metrics
+                  self.metrics = CostMetrics(
+                      tokens_processed=0,
+                      requests_served=0,
+                      cache_hits=0,
+                      total_cost=0.0,
+                      cost_saved_by_cache=0.0
+                  )
+                  
+                  # Budgets
+                  self.hourly_budget = 100.0
+                  self.daily_budget = 2000.0
+                  self.monthly_budget = 50000.0
+              
+              def calculate_request_cost(self,
+                                        prompt_tokens: int,
+                                        completion_tokens: int) -> float:
+                  """Calculate cost for request."""
+                  prompt_cost = (prompt_tokens / 1_000_000) * self.pricing['prompt']
+                  completion_cost = (completion_tokens / 1_000_000) * self.pricing['completion']
+                  return prompt_cost + completion_cost
+              
+              def track_request(self,
+                              prompt_tokens: int,
+                              completion_tokens: int,
+                              cached: bool = False):
+                  """Track request and update metrics."""
+                  cost = self.calculate_request_cost(prompt_tokens, completion_tokens)
+                  
+                  self.metrics.requests_served += 1
+                  self.metrics.tokens_processed += prompt_tokens + completion_tokens
+                  
+                  if cached:
+                      self.metrics.cache_hits += 1
+                      self.metrics.cost_saved_by_cache += cost
+                  else:
+                      self.metrics.total_cost += cost
+              
+              def get_cache_roi(self) -> Dict:
+                  """Calculate cache ROI."""
+                  hit_rate = (
+                      self.metrics.cache_hits / self.metrics.requests_served
+                      if self.metrics.requests_served > 0 else 0
+                  )
+                  
+                  cache_storage_cost = 50.0  # $50/month for Redis
+                  net_savings = self.metrics.cost_saved_by_cache - cache_storage_cost
+                  
+                  roi = (
+                      self.metrics.cost_saved_by_cache / cache_storage_cost
+                      if cache_storage_cost > 0 else 0
+                  )
+                  
+                  return {
+                      'hit_rate': hit_rate,
+                      'cost_saved': self.metrics.cost_saved_by_cache,
+                      'cache_storage_cost': cache_storage_cost,
+                      'net_savings': net_savings,
+                      'roi': roi
+                  }
+              
+              def get_optimization_recommendations(self) -> List[str]:
+                  """Get cost optimization recommendations."""
+                  recommendations = []
+                  
+                  # Check cache hit rate
+                  hit_rate = (
+                      self.metrics.cache_hits / self.metrics.requests_served
+                      if self.metrics.requests_served > 0 else 0
+                  )
+                  
+                  if hit_rate < 0.3:
+                      recommendations.append(
+                          f"Low cache hit rate ({hit_rate:.1%}). "
+                          "Consider implementing semantic caching or lowering similarity threshold."
+                      )
+                  
+                  # Check average tokens per request
+                  avg_tokens = (
+                      self.metrics.tokens_processed / self.metrics.requests_served
+                      if self.metrics.requests_served > 0 else 0
+                  )
+                  
+                  if avg_tokens > 2000:
+                      recommendations.append(
+                          f"High average tokens per request ({avg_tokens:.0f}). "
+                          "Consider prompt compression or response length limits."
+                      )
+                  
+                  # Check cost per request
+                  cost_per_request = (
+                      self.metrics.total_cost / self.metrics.requests_served
+                      if self.metrics.requests_served > 0 else 0
+                  )
+                  
+                  if cost_per_request > 0.01:
+                      recommendations.append(
+                          f"High cost per request (${cost_per_request:.4f}). "
+                          "Consider using smaller models for simple queries or increasing batch size."
+                      )
+                  
+                  if not recommendations:
+                      recommendations.append("Cost optimization looks good! No major issues detected.")
+                  
+                  return recommendations
+              
+              def generate_cost_report(self) -> str:
+                  """Generate cost report."""
+                  cache_roi = self.get_cache_roi()
+                  recommendations = self.get_optimization_recommendations()
+                  
+                  report = f"""
+=== COST OPTIMIZATION REPORT ===
+
+Metrics:
+  Requests served: {self.metrics.requests_served:,}
+  Tokens processed: {self.metrics.tokens_processed:,}
+  Cache hits: {self.metrics.cache_hits:,} ({cache_roi['hit_rate']:.1%})
+  
+Costs:
+  Total inference cost: ${self.metrics.total_cost:,.2f}
+  Cost saved by cache: ${self.metrics.cost_saved_by_cache:,.2f}
+  Cache storage cost: ${cache_roi['cache_storage_cost']:,.2f}
+  Net savings: ${cache_roi['net_savings']:,.2f}
+  Cache ROI: {cache_roi['roi']:.1f}x
+
+Recommendations:
+"""
+                  
+                  for i, rec in enumerate(recommendations, 1):
+                      report += f"  {i}. {rec}\n"
+                  
+                  return report
+          
+          
+          def demonstrate_cost_optimization():
+              """Demonstrate cost optimization."""
+              print("\n" + "="*80)
+              print("COST OPTIMIZATION DEMONSTRATION")
+              print("="*80)
+              
+              optimizer = CostOptimizer()
+              
+              # Simulate traffic
+              print("\nSimulating 1000 requests...")
+              
+              for i in range(1000):
+                  # Mix of cached and uncached
+                  cached = (i % 3 == 0)  # 33% cache hit rate
+                  
+                  # Varying token counts
+                  prompt_tokens = 500 + (i % 500)
+                  completion_tokens = 200 + (i % 300)
+                  
+                  optimizer.track_request(prompt_tokens, completion_tokens, cached)
+              
+              # Generate report
+              print("\n" + optimizer.generate_cost_report())
+          
+          
+          if __name__ == "__main__":
+              demonstrate_cost_optimization()
+    
+    security_implications:
+      cost_exhaustion_attacks: |
+        **Vulnerability**: Attackers exhaust victim's budget through expensive requests,
+        causing service denial or massive bills.
+        
+        **Attack scenario**: Attacker sends requests designed to maximize cost
+        - Maximum prompt length (4K tokens)
+        - Maximum completion length (2K tokens)
+        - Bypass caching (slightly different prompts each time)
+        - High volume attack
+        
+        Cost impact:
+```
+        Normal request: 1000 tokens, $0.001
+        Malicious request: 6000 tokens, $0.006
+        1000 req/sec: $21,600/hour
+```
+        
+        **Defense**:
+        1. Hard cost caps: Auto-disable at budget threshold
+        2. Per-user quotas: Limit tokens per user per period
+        3. Rate limiting: Prevent high-volume attacks
+        4. Input validation: Reject excessive prompt/max_tokens
+        5. Anomaly detection: Flag unusual cost patterns
+        6. Progressive rate limiting: Slow down expensive users
+        7. Require payment: Credit card/deposit before high usage
+      
+      cache_inflation_attacks: |
+        **Vulnerability**: Attackers fill cache with junk, evicting useful entries and
+        degrading cache effectiveness.
+        
+        **Attack scenario**: Attacker sends many unique queries
+        - Each query different (no deduplication benefit)
+        - Cache fills with attacker's queries
+        - Legitimate users' queries evicted (LRU)
+        - Cache hit rate drops dramatically
+        - Costs increase for legitimate traffic
+        
+        **Defense**:
+        1. User-isolated caches: Per-user cache partitions
+        2. Access control: Require authentication for caching
+        3. Cache quotas: Limit cache entries per user
+        4. Priority-based eviction: Protect high-value entries
+        5. Anomaly detection: Flag cache pollution patterns
+        6. Cache warming: Pre-populate with known good queries
+        7. Monitoring: Track cache hit rate, alert on drops
+      
+      budget_bypass: |
+        **Vulnerability**: Attackers bypass budget controls through multiple accounts,
+        API key sharing, or exploiting budget loopholes.
+        
+        **Attack scenario 1**: Multiple free-tier accounts
+        - Create 100 accounts
+        - Each gets 1M free tokens
+        - Total: 100M tokens for free
+        
+        **Attack scenario 2**: Exploit budget calculation
+        - Budget based on prompt tokens only
+        - Send short prompts, request long completions
+        - Stay under prompt budget, explode completion cost
+        
+        **Defense**:
+        1. Identity verification: Phone, credit card for accounts
+        2. IP-based limits: Aggregate usage by IP
+        3. Behavioral analysis: Detect bot-like patterns
+        4. Comprehensive budgets: Include all token types
+        5. Real-time enforcement: Check budget before processing
+        6. Audit trails: Track budget bypass attempts
+        7. Account linking detection: Find duplicate accounts
+
+key_takeaways:
+  critical_concepts:
+    - concept: "Multi-tier caching (response, prompt, KV-cache) eliminates redundant computation, reducing costs 50-90% in production"
+      why_it_matters: "LLM inference costs $1-3 per 1M tokens. At scale (1000 req/sec), this is $10K-50K/month. Caching provides massive ROI (100x+)."
+    
+    - concept: "Semantic caching using embedding similarity increases hit rates 2-5x vs exact matching by capturing semantic equivalence"
+      why_it_matters: "Exact caching hits 5-20% of requests. Semantic caching hits 30-60%, dramatically improving cost savings and user experience."
+    
+    - concept: "Request deduplication merges identical concurrent requests, eliminating redundant inference for popular queries"
+      why_it_matters: "Popular queries often arrive concurrently. Deduplication processes once instead of N times, providing 5-10x savings for common queries."
+    
+    - concept: "Cost optimization requires multi-dimensional approach: caching, compression, model selection, infrastructure optimization"
+      why_it_matters: "No single technique provides 90% savings. Combining caching (60%), compression (20%), and infrastructure (20%) achieves 80-90% total reduction."
+  
+  actionable_steps:
+    - step: "Implement semantic cache with Redis and embedding similarity (threshold 0.88-0.92) for 2-5x higher hit rates"
+      verification: "Compare hit rates vs exact cache. Semantic should achieve 30-60% hit rate vs 5-20% for exact matching."
+    
+    - step: "Add request deduplication to merge identical concurrent requests and eliminate redundant inference"
+      verification: "Load test with repeated queries. Deduplication should process once, serve N responses. 5-10x speedup for duplicates."
+    
+    - step: "Implement cost tracking with Prometheus metrics and real-time alerts on budget thresholds"
+      verification: "Simulate high-cost traffic. Should trigger alerts at configured thresholds. Track cost accurately in metrics."
+    
+    - step: "Configure aggressive prompt compression (remove redundancy, efficient few-shot) to reduce input tokens 40-60%"
+      verification: "Compare token counts before/after compression. Should reduce 40-60% with minimal quality loss."
+  
+  security_principles:
+    - principle: "Validate all cache inputs to prevent poisoning: check outputs before caching, require authentication"
+      application: "Response validation (harmful content detection). User isolation. Admin review for critical queries. Cache signing."
+    
+    - principle: "Enforce cost budgets rigorously: per-user quotas, hard caps, real-time checks before processing"
+      application: "Budget checks before inference. Hard limits enforced. Account disable at threshold. Real-time cost tracking."
+    
+    - principle: "Isolate users in caching and budgeting: per-user caches, no cross-user hits, separate quotas"
+      application: "User namespace in cache keys. Verify user_id before cache access. Per-user budget tracking. No shared cache space."
+    
+    - principle: "Monitor for cost abuse: unusual patterns, cache pollution, budget bypass attempts"
+      application: "Track cost per user over time. Alert on spikes. Detect cache filling patterns. Flag multiple accounts from same IP."
+  
+  common_mistakes:
+    - mistake: "Using exact-match caching only, missing 80% of potential cache hits from similar queries"
+      fix: "Implement semantic caching with embeddings. Increases hit rate from 5-20% to 30-60%."
+    
+    - mistake: "No request deduplication, processing identical concurrent requests multiple times"
+      fix: "Add deduplication layer to merge identical in-flight requests. 5-10x savings for popular queries."
+    
+    - mistake: "Not tracking costs in real-time, discovering massive bills days/weeks later"
+      fix: "Implement real-time cost tracking with Prometheus. Alert at thresholds. Track per-user attribution."
+    
+    - mistake: "Allowing unlimited prompt/completion lengths, enabling cost exhaustion attacks"
+      fix: "Hard limits on prompt (4K tokens) and max_tokens (1K-2K). Reject excessive requests immediately."
+    
+    - mistake: "No cache TTL or invalidation, serving stale responses indefinitely"
+      fix: "Set appropriate TTL (1-24 hours depending on content freshness). Invalidate on model updates."
+  
+  integration_with_book:
+    from_section_4_14:
+      - "Horizontal scaling (4.14) provides throughput; caching (4.15) provides cost efficiency"
+      - "Distributed cache (Redis) shared across scaled instances"
+      - "Combined: scale for traffic, cache for cost, optimal economics"
+    
+    to_next_section:
+      - "Section 4.16: Monitoring, logging, and observability"
+      - "Comprehensive visibility into cached distributed systems"
+      - "Track cache performance, costs, and optimization opportunities"
+  
+  looking_ahead:
+    next_concepts:
+      - "Monitoring and observability for production systems (4.16)"
+      - "API security and compliance at scale (4.17)"
+      - "Advanced attack techniques on production systems (4.18)"
+      - "Defense-in-depth and comprehensive security (4.19)"
+    
+    skills_to_build:
+      - "Implementing sophisticated caching strategies"
+      - "Cost analysis and optimization techniques"
+      - "Embedding-based semantic similarity"
+      - "Real-time cost tracking and budgeting"
+  
+  final_thoughts: |
+    Caching and cost optimization transform expensive LLM systems into economically viable
+    production services. Section 4.15 provides techniques to reduce costs 80-95% while
+    maintaining quality and user experience.
+    
+    Key insights:
+    
+    1. **Caching is essential, not optional**: At scale, LLM inference costs $10K-50K/month
+       without optimization. Caching provides 100x+ ROI ($50 cache infrastructure saves
+       $50K/month). Start with caching from day one—retrofitting is painful and expensive.
+    
+    2. **Semantic caching dramatically outperforms exact matching**: Exact cache hits 5-20%
+       of requests. Semantic cache hits 30-60% by recognizing equivalent queries ("What is
+       Python?" ≈ "Tell me about Python"). This 3-5x improvement is transformative for costs.
+    
+    3. **Request deduplication catches concurrent duplicates**: Popular queries often arrive
+       simultaneously. Deduplication processes once instead of N times, providing 5-10x
+       savings for trending queries. Easy win with high ROI.
+    
+    4. **Cost optimization requires multiple strategies**: No silver bullet. Combine caching
+       (60% savings), prompt compression (20%), infrastructure optimization (20%) for total
+       80-90% reduction. Each technique addresses different waste.
+    
+    5. **Real-time cost tracking prevents disasters**: Without monitoring, costs spiral
+       unnoticed until massive bills arrive. Real-time tracking with alerts catches abuse
+       immediately, preventing $10K+ surprises.
+    
+    Moving forward, Section 4.16 advances to monitoring and observability: comprehensive
+    logging, metrics, and tracing that enable operating these complex cached distributed
+    systems reliably. Visibility is essential for debugging, optimization, and security.
+    
+    Remember: Cost optimization isn't about being cheap—it's about being sustainable. Build
+    cost-effective systems that can scale to millions of users without bankruptcy. Cache
+    aggressively, track meticulously, optimize continuously. Production economics determine
+    business viability.
+
+---
