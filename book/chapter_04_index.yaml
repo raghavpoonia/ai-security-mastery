@@ -1,778 +1,782 @@
+20260104 | AI Security: AI Threat Landscape (Section 0400 Index) by Raghav Dinesh
+#wrap 
+
 # chapter_04_index.yaml
 
 ---
-chapter_info:
-  number: 4
-  title: "Production LLM Systems and Advanced Techniques"
+document_info:
+  title: "Chapter 4: Modern LLM Internals - Index"
   book: "AI Security Mastery: From ML Fundamentals to Production Detection Systems"
+  chapter: 4
+  part: 1
   author: "Raghav Dinesh"
   github: "https://github.com/raghavpoonia/ai-security-mastery"
   license: "MIT"
-  created: "2026-01-25"
+  created: "2026-01-19"
   version: "1.0"
-  
-  description: |
-    Chapter 4 transitions from understanding LLM architectures to building production-grade
-    LLM systems. This chapter covers advanced techniques like Retrieval-Augmented Generation
-    (RAG), LLM agents with tool use, fine-tuning strategies, and comprehensive production
-    deployment patterns. Every concept is taught with security-first principles, showing
-    both vulnerable implementations and hardened production versions.
-    
-    The chapter is structured in four parts: (1) Advanced LLM Techniques including RAG,
-    few-shot learning, and fine-tuning; (2) LLM Agents and Tool Use covering function
-    calling, agent architectures, and agentic workflows; (3) Production Deployment
-    including serving, scaling, monitoring, and security hardening; and (4) Advanced
-    Security covering sophisticated attack techniques, defense-in-depth strategies,
-    and red-teaming methodologies.
-    
-    By the end of this chapter, you'll be able to build, deploy, and secure production
-    LLM systems from scratch, understanding every attack surface and defense mechanism.
-  
-  learning_outcomes:
-    - "Build RAG systems from scratch using vector databases and embedding-based retrieval"
-    - "Implement LLM agents with function calling, tool use, and multi-agent coordination"
-    - "Apply fine-tuning techniques (LoRA, QLoRA) and understand when to fine-tune vs prompt engineer"
-    - "Deploy and scale LLMs in production with optimization, monitoring, and cost management"
-    - "Secure production LLM systems against advanced attacks (RAG poisoning, agent exploitation)"
-    - "Implement defense-in-depth strategies for LLM applications at scale"
-    - "Build automated red-teaming and security testing pipelines"
-    - "Design zero-trust architectures for LLM-powered applications"
-  
+  description: "Comprehensive index for Chapter 4 covering Modern LLM Internals from GPT architecture deep dive to API security and prompt engineering"
+  tags:
+    - modern-llm
+    - gpt-architecture
+    - constitutional-ai
+    - rlhf
+    - inference-optimization
+    - kv-cache
+    - quantization
+    - prompt-engineering
+    - api-security
+
+chapter_overview:
+  number: 4
+  title: "Modern LLM Internals"
+  part: "Part 1: Machine Learning Foundations"
+  position: "Chapter 4 of 4 in Part 1 (Part 1 Capstone)"
+
+  purpose: |
+    This chapter closes Part 1 by going deep into how production LLMs actually work.
+    Chapter 3 gave you transformer architecture - now we dissect the systems that power
+    ChatGPT, Claude, and Gemini in production. We examine GPT-2 through GPT-4 scaling,
+    Anthropic's Constitutional AI and RLHF alignment approach, inference optimization
+    techniques (KV cache, Flash Attention), quantization strategies, and the security
+    implications of each.
+
+    For security engineers: modern LLMs are complex production systems with multiple
+    attack surfaces at each layer - from pre-training data poisoning to inference-time
+    prompt injection to API abuse. Understanding their internals reveals exactly where
+    security controls must live and where they fail.
+
+  learning_path:
+    gpt_evolution: "GPT-2 → GPT-3 → GPT-4: how scaling changed everything"
+    alignment: "RLHF → Constitutional AI: how safety training works (and breaks)"
+    training_pipeline: "Pre-training → SFT → RLHF: complete production pipeline"
+    inference: "KV Cache → Flash Attention → speculative decoding: speed vs security"
+    compression: "Quantization → pruning → distillation: deployment trade-offs"
+    control: "Prompt engineering → system prompts → API architecture"
+    security: "Attack surfaces at every layer: injection, extraction, abuse"
+
   prerequisites:
-    knowledge:
-      - "Chapter 3: Complete transformer architecture (encoder, decoder, attention mechanisms)"
-      - "Chapter 3: Modern LLMs (BERT, GPT, T5) and their training objectives"
-      - "Chapter 3: LLM security fundamentals (prompt injection, jailbreaking, data extraction)"
-      - "Chapter 2: Deep learning fundamentals (backpropagation, optimization, regularization)"
-      - "Chapter 1: Python, NumPy, and software engineering practices"
-    
-    skills:
-      - "Implementing neural networks from scratch with NumPy"
-      - "Understanding attention mechanisms and transformer computations"
-      - "Identifying and defending against basic LLM security vulnerabilities"
-      - "Working with embeddings and vector representations"
-  
-  chapter_structure:
-    part_1:
-      title: "Advanced LLM Techniques"
-      sections: [1, 2, 3, 4, 5, 6]
-      focus: "RAG, few-shot learning, fine-tuning, and advanced prompt engineering"
-    
-    part_2:
-      title: "LLM Agents and Tool Use"
-      sections: [7, 8, 9, 10, 11]
-      focus: "Function calling, agent architectures, workflows, and memory management"
-    
-    part_3:
-      title: "Production Deployment"
-      sections: [12, 13, 14, 15, 16, 17]
-      focus: "Serving, scaling, monitoring, optimization, and operational security"
-    
-    part_4:
-      title: "Advanced Security"
-      sections: [18, 19, 20, 21]
-      focus: "Advanced attacks, defense-in-depth, red-teaming, and comprehensive security"
+    - "Chapter 1: ML Fundamentals (gradient descent, regularization)"
+    - "Chapter 2: Deep Learning Basics (backpropagation, optimization)"
+    - "Chapter 3: LLM Architecture (transformers, attention, BERT/GPT/T5)"
+    - "Understanding of autoregressive generation"
+    - "Familiarity with API concepts (REST, tokens, rate limits)"
+
+  structure:
+    total_sections: 18
+    content_sections: 17
+    summary_sections: 1
+    estimated_pages: 108
+    average_pages_per_section: 6
+    page_range: "5-8 pages per section"
+
+  key_deliverables:
+    - "Fine-tuned GPT-2 on custom security dataset"
+    - "RLHF reward model implementation"
+    - "Constitutional AI preference filter"
+    - "KV cache implementation from scratch"
+    - "Flash Attention prototype"
+    - "INT8 and INT4 quantization pipeline"
+    - "Prompt engineering playbook (50+ techniques)"
+    - "API abuse detector"
+    - "Model extraction via API defense toolkit"
+
+  security_themes:
+    training_poisoning: "Pre-training and fine-tuning as attack surfaces"
+    alignment_bypass: "How RLHF and Constitutional AI fail under adversarial pressure"
+    inference_side_channels: "KV cache and attention timing leakage"
+    quantization_vulnerabilities: "Accuracy vs robustness tradeoffs in compressed models"
+    prompt_exploitation: "System prompts, instruction hierarchy, and injection points"
+    api_abuse: "Rate limits, cost attacks, model extraction via API"
+
+  progression:
+    week_4_day_1_2: "Sections 1-3: GPT architecture deep dive and scaling"
+    week_4_day_3_4: "Sections 4-6: Claude/Anthropic architecture and alignment"
+    week_4_day_5_6: "Sections 7-9: Training pipeline (pre-training, SFT, RLHF)"
+    week_4_day_7: "Sections 10-12: Inference optimization"
+    week_5_day_1_2: "Sections 13-15: Context windows and quantization"
+    week_5_day_3_4: "Sections 16-17: Prompt engineering and API security"
+    week_5_day_5: "Section 18: Chapter summary and Part 1 capstone"
 
 sections:
+
   - section_number: 1
-    title: "Vector Embeddings and Semantic Search Foundations"
-    filename: "section_04_01_vector_embeddings_semantic_search.yaml"
-    estimated_pages: 7
-    part: 1
-    
+    title: "GPT-2 Architecture: The Breakthrough"
+    filename: "section_04_01_gpt2_architecture.yaml"
+    estimated_pages: 6
+
     topics:
-      - "Dense vector representations and embedding spaces"
-      - "Similarity metrics: cosine, dot product, euclidean distance"
-      - "Semantic search architecture and nearest neighbor algorithms"
-      - "Building embedding-based search from scratch with NumPy"
-    
+      - "GPT-2 design decisions: decoder-only, 1.5B parameters"
+      - "Architectural differences from original transformer"
+      - "Pre-norm vs post-norm (GPT-2's choice)"
+      - "Token and positional embeddings"
+      - "Tied input/output embeddings"
+      - "Training data: WebText, filtering heuristics"
+      - "Zero-shot and few-shot capabilities"
+      - "Why GPT-2 was 'too dangerous to release' (and wasn't)"
+
     key_concepts:
-      - "Embedding dimensionality and its impact on semantic capture"
-      - "Similarity metrics trade-offs (speed, accuracy, memory)"
-      - "Approximate nearest neighbors vs exact search"
-      - "Embedding model selection and domain adaptation"
-    
+      - "Decoder-only simplification for generation"
+      - "Scaling: parameters vs capability"
+      - "Self-supervised pre-training on web text"
+      - "Few-shot as in-context learning"
+
     deliverables:
-      - "NumPy implementation of cosine similarity search"
-      - "K-nearest neighbors (KNN) semantic search engine"
-      - "Embedding space visualization and analysis tools"
-      - "Performance benchmarking suite for similarity metrics"
-    
+      - "GPT-2 architecture recreation (PyTorch)"
+      - "Layer inspection toolkit (weights, activations)"
+      - "Tokenizer for GPT-2 (BPE)"
+      - "Text generation with GPT-2"
+      - "Zero-shot task evaluation"
+
     security_preview: |
-      Embedding spaces can leak information through similarity queries. Attackers
-      can reconstruct training data, perform membership inference, or poison the
-      embedding space. This section covers embedding security, query sanitization,
-      and defense against nearest-neighbor attacks.
+      GPT-2's training on unfiltered web text means it memorized sensitive content -
+      PII, credentials, malicious code. Zero-shot capabilities mean adversaries
+      don't need fine-tuning to weaponize models. Understanding GPT-2 architecture
+      reveals foundational attack surfaces that persist in all successors.
 
   - section_number: 2
-    title: "Vector Databases and Efficient Retrieval Systems"
-    filename: "section_04_02_vector_databases_efficient_retrieval.yaml"
-    estimated_pages: 8
-    part: 1
-    
+    title: "GPT-3 and Emergent Capabilities"
+    filename: "section_04_02_gpt3_emergent.yaml"
+    estimated_pages: 6
+
     topics:
-      - "Vector database architectures and indexing strategies"
-      - "FAISS: Facebook AI Similarity Search from fundamentals"
-      - "Approximate nearest neighbor algorithms (HNSW, IVF)"
-      - "Production vector database deployment (Pinecone, Weaviate, Milvus)"
-    
+      - "Scaling laws: compute, data, parameters"
+      - "GPT-3: 175B parameters, architecture choices"
+      - "Emergent abilities at scale (chain-of-thought, arithmetic)"
+      - "In-context learning mechanics"
+      - "The 'few-shot' vs 'fine-tuning' tradeoff"
+      - "Training cost and carbon footprint"
+      - "Capability evaluations and benchmarks"
+
     key_concepts:
-      - "Index types: flat, IVF, HNSW, PQ trade-offs"
-      - "Quantization for memory efficiency"
-      - "Sharding and distributed vector search"
-      - "Index persistence and incremental updates"
-    
+      - "Scaling hypothesis and emergent behaviors"
+      - "In-context learning vs gradient updates"
+      - "Prompt sensitivity at scale"
+      - "Benchmark saturation"
+
     deliverables:
-      - "FAISS implementation from scratch (flat index)"
-      - "HNSW (Hierarchical Navigable Small World) graph implementation"
-      - "Production FAISS deployment with GPU acceleration"
-      - "Vector database benchmarking framework"
-    
+      - "Scaling law calculator (predict performance from compute)"
+      - "In-context learning demonstrator"
+      - "Emergent capability tester framework"
+      - "Prompt sensitivity analyzer"
+
     security_preview: |
-      Vector databases introduce new attack surfaces: index poisoning, query timing
-      attacks, and unauthorized data access. This section implements secure vector
-      storage, query validation, access control, and defense against poisoning attacks.
+      Emergent capabilities are unpredictable - models gain abilities that weren't
+      explicitly trained for, including harmful ones. Scale amplifies both capabilities
+      and vulnerabilities: a more capable model is more capable of being exploited.
+      In-context learning means carefully crafted examples can override intended behavior
+      without any model modification.
 
   - section_number: 3
-    title: "Document Processing and Intelligent Chunking Strategies"
-    filename: "section_04_03_document_processing_chunking.yaml"
-    estimated_pages: 7
-    part: 1
-    
+    title: "GPT-4 and Multimodal Architectures"
+    filename: "section_04_03_gpt4_multimodal.yaml"
+    estimated_pages: 6
+
     topics:
-      - "Document loaders and text extraction pipelines"
-      - "Chunking strategies: fixed-size, semantic, recursive"
-      - "Chunk overlap and context preservation techniques"
-      - "Metadata extraction and enrichment for retrieval"
-    
+      - "GPT-4 architecture (what's public)"
+      - "Multimodal inputs: vision + text"
+      - "Mixture of Experts (MoE) speculation and reality"
+      - "System prompts as architecture feature"
+      - "Tool use and function calling"
+      - "GPT-4 safety training (red-teaming, RLHF)"
+      - "Benchmark performance and limitations"
+
     key_concepts:
-      - "Chunk size vs retrieval accuracy trade-offs"
-      - "Semantic chunking using sentence embeddings"
-      - "Context window management for downstream LLMs"
-      - "Multilingual document processing considerations"
-    
+      - "Multimodal fusion architectures"
+      - "System prompt instruction hierarchy"
+      - "Tool use as capability extension"
+      - "Responsible scaling policies"
+
     deliverables:
-      - "Multi-format document loader (PDF, DOCX, HTML, Markdown)"
-      - "Semantic chunking implementation using embeddings"
-      - "Recursive chunking with parent-child relationships"
-      - "Chunk quality evaluation framework"
-    
+      - "System prompt vs user prompt boundary analyzer"
+      - "Tool calling implementation (mock)"
+      - "Instruction hierarchy tester"
+      - "Multimodal attack surface mapper"
+
     security_preview: |
-      Document processing pipelines are vulnerable to malicious inputs: polyglot files,
-      XXE attacks, path traversal, and content injection. This section covers secure
-      file handling, input validation, sandboxing, and defense against document-based
-      attacks in RAG systems.
+      GPT-4's system prompts create an instruction hierarchy with explicit security
+      implications - attackers target the boundary between system and user context.
+      Tool use dramatically expands attack surface: LLMs that can call APIs, browse web,
+      or execute code can cause real-world harm. Multimodal inputs add visual attack
+      vectors (adversarial images, prompt injection in screenshots).
 
   - section_number: 4
-    title: "Retrieval-Augmented Generation (RAG) Architecture"
-    filename: "section_04_04_rag_architecture.yaml"
-    estimated_pages: 8
-    part: 1
-    
+    title: "Constitutional AI: Anthropic's Alignment Approach"
+    filename: "section_04_04_constitutional_ai.yaml"
+    estimated_pages: 7
+
     topics:
-      - "RAG pipeline architecture: retrieval, augmentation, generation"
-      - "Query transformation and expansion techniques"
-      - "Re-ranking strategies for retrieval quality"
-      - "Context compression and relevance filtering"
-    
+      - "Constitutional AI (CAI) overview and motivation"
+      - "The 'constitution': principles and their selection"
+      - "RLAIF: Reinforcement Learning from AI Feedback"
+      - "Critique and revision pipeline"
+      - "Comparison to RLHF: advantages and tradeoffs"
+      - "Harmlessness vs helpfulness tension"
+      - "CAI failure modes and adversarial examples"
+      - "Claude's architecture and training pipeline"
+
     key_concepts:
-      - "Dense retrieval vs sparse retrieval vs hybrid"
-      - "Query understanding and intent classification"
-      - "Top-k selection and diversity in retrieved documents"
-      - "Prompt construction from retrieved context"
-    
+      - "AI feedback instead of (only) human feedback"
+      - "Principle-based alignment"
+      - "Self-critique as training signal"
+      - "Alignment tax: safety vs capability"
+
     deliverables:
-      - "End-to-end RAG system from scratch (NumPy + Transformers)"
-      - "Hybrid retrieval implementation (BM25 + dense embeddings)"
-      - "Re-ranking model using cross-encoders"
-      - "RAG evaluation framework (faithfulness, relevance)"
-    
+      - "Constitutional AI simulation (mini implementation)"
+      - "Principle adherence evaluator"
+      - "Harmlessness/helpfulness tradeoff analyzer"
+      - "CAI failure mode catalog"
+      - "RLAIF training loop prototype"
+
     security_preview: |
-      RAG systems are vulnerable to retrieval manipulation, context injection, and
-      answer poisoning. Attackers can manipulate rankings, inject malicious documents,
-      or exploit the generation phase. This section implements secure RAG with input
-      validation, retrieval filtering, and output sanitization.
+      Constitutional AI reveals how safety training works mechanically - and therefore
+      how it can fail. Adversaries study the 'constitution' to craft prompts that
+      technically comply with stated principles while achieving harmful goals.
+      Understanding CAI shows that alignment is not a solved problem but an ongoing
+      adversarial game.
 
   - section_number: 5
-    title: "Advanced Prompt Engineering and In-Context Learning"
-    filename: "section_04_05_advanced_prompting_in_context_learning.yaml"
+    title: "RLHF: Reinforcement Learning from Human Feedback"
+    filename: "section_04_05_rlhf_mechanics.yaml"
     estimated_pages: 7
-    part: 1
-    
+
     topics:
-      - "Few-shot learning and demonstration selection strategies"
-      - "Chain-of-thought (CoT) prompting and reasoning elicitation"
-      - "Self-consistency and majority voting techniques"
-      - "Prompt optimization and automatic prompt engineering"
-    
+      - "RLHF three stages: SFT, reward model, RL fine-tuning"
+      - "Reward model: learning human preferences"
+      - "PPO (Proximal Policy Optimization) for LLMs"
+      - "KL divergence penalty: preventing reward hacking"
+      - "Human annotation: who decides what's 'good'?"
+      - "Reward hacking and specification gaming"
+      - "RLHF limitations: scalable oversight problem"
+
     key_concepts:
-      - "Demonstration ordering and its impact on performance"
-      - "Reasoning patterns: zero-shot CoT, few-shot CoT, ReAct"
-      - "Prompt compression and context length optimization"
-      - "Dynamic example selection based on query similarity"
-    
+      - "Reward model as human preference proxy"
+      - "Policy optimization with LLMs"
+      - "Reward hacking: optimizing proxy not true objective"
+      - "Value alignment through human feedback"
+
     deliverables:
-      - "Few-shot prompt constructor with example selection"
-      - "Chain-of-thought prompt generator and parser"
-      - "Self-consistency ensemble implementation"
-      - "Automatic prompt optimizer using feedback"
-    
+      - "Reward model implementation (preference learning)"
+      - "PPO training loop for language models"
+      - "KL divergence penalty calculator"
+      - "Reward hacking demonstrator"
+      - "RLHF pipeline simulation (end-to-end)"
+
     security_preview: |
-      Advanced prompting techniques introduce new attack vectors: demonstration
-      poisoning, reasoning manipulation, and consistency attacks. This section covers
-      secure example selection, CoT validation, and defense against prompt optimization
-      exploits.
+      RLHF is the primary alignment mechanism - and a primary attack surface. Reward
+      models can be fooled: outputs that score well on the reward model but are harmful.
+      Human annotator biases become model biases. Understanding RLHF mechanics reveals
+      why jailbreaks work: they find inputs that bypass RLHF-trained filters by exploiting
+      gaps between reward model and true human values.
 
   - section_number: 6
-    title: "Fine-Tuning Strategies: LoRA, QLoRA, and Efficient Adaptation"
-    filename: "section_04_06_fine_tuning_lora_qlora.yaml"
-    estimated_pages: 8
-    part: 1
-    
+    title: "Supervised Fine-Tuning (SFT) and Instruction Tuning"
+    filename: "section_04_06_sft_instruction_tuning.yaml"
+    estimated_pages: 6
+
     topics:
-      - "Full fine-tuning vs parameter-efficient fine-tuning (PEFT)"
-      - "LoRA (Low-Rank Adaptation): theory and implementation"
-      - "QLoRA: Quantization + LoRA for memory efficiency"
-      - "When to fine-tune vs when to use prompt engineering"
-    
+      - "SFT: from pre-trained model to instruction follower"
+      - "Instruction datasets: FLAN, Alpaca, ShareGPT"
+      - "Dataset quality vs quantity tradeoffs"
+      - "Format: prompt-response pairs"
+      - "Catastrophic forgetting: preserving pre-training"
+      - "Parameter-efficient fine-tuning: LoRA, QLoRA"
+      - "When fine-tuning goes wrong: backdoor injection"
+
     key_concepts:
-      - "Low-rank decomposition for efficient adaptation"
-      - "LoRA hyperparameters: rank, alpha, dropout"
-      - "4-bit quantization with NormalFloat4 (NF4)"
-      - "Fine-tuning decision framework and cost analysis"
-    
+      - "Instruction following as learned capability"
+      - "Distribution shift from pre-training to SFT"
+      - "LoRA: low-rank adaptation efficiency"
+      - "Fine-tuning as persistent attack vector"
+
     deliverables:
-      - "LoRA implementation from scratch with NumPy"
-      - "Full LoRA fine-tuning pipeline with Hugging Face"
-      - "QLoRA implementation with 4-bit quantization"
-      - "Fine-tuning vs prompting decision framework"
-    
+      - "Fine-tune GPT-2 on custom security dataset"
+      - "LoRA implementation from scratch"
+      - "Dataset quality evaluator"
+      - "Catastrophic forgetting measurer"
+      - "Fine-tuning backdoor injector (for detection research)"
+
     security_preview: |
-      Fine-tuning introduces backdoor risks, data poisoning, and model stealing
-      vulnerabilities. This section covers secure fine-tuning practices, training
-      data validation, backdoor detection, and defense against model extraction
-      attacks during fine-tuning.
+      Fine-tuning is where most LLM deployments customize models for specific tasks -
+      and it's a critical attack surface. Backdoors can be injected through poisoned
+      fine-tuning datasets. LoRA adapters can be swapped to change model behavior
+      post-deployment. Understanding SFT mechanics enables auditing fine-tuned models
+      for compromised behavior before production deployment.
 
   - section_number: 7
-    title: "Function Calling and Structured Output Generation"
-    filename: "section_04_07_function_calling_structured_outputs.yaml"
-    estimated_pages: 7
-    part: 2
-    
+    title: "Pre-Training at Scale: Data, Compute, and Risks"
+    filename: "section_04_07_pretraining_scale.yaml"
+    estimated_pages: 6
+
     topics:
-      - "Function calling API design and schema definition"
-      - "Structured output generation with JSON mode and grammar constraints"
-      - "Parameter extraction and validation from LLM outputs"
-      - "Error handling and fallback strategies for invalid calls"
-    
+      - "Pre-training data sources: Common Crawl, books, code, Wikipedia"
+      - "Data filtering and deduplication pipelines"
+      - "Tokenization at scale (trillions of tokens)"
+      - "Distributed training: model parallelism, data parallelism"
+      - "Compute budget allocation (Chinchilla scaling laws)"
+      - "Training instabilities and recovery"
+      - "Data memorization: what models remember"
+
     key_concepts:
-      - "JSON schema for function definitions"
-      - "Constrained decoding for guaranteed valid outputs"
-      - "Multi-function selection and routing logic"
-      - "Function result integration back into conversation"
-    
+      - "Data quality determines model quality"
+      - "Scale requires distributed systems"
+      - "Memorization vs generalization tradeoff"
+      - "Supply chain: your model ate the internet"
+
     deliverables:
-      - "Function calling framework from scratch"
-      - "JSON schema validator and output parser"
-      - "Constrained decoding implementation for structured outputs"
-      - "Multi-function orchestration system"
-    
+      - "Data pipeline simulator (filtering, dedup)"
+      - "Memorization detector (verbatim recall test)"
+      - "Training stability monitor"
+      - "Scaling law experiment (small scale)"
+      - "Data provenance tracker"
+
     security_preview: |
-      Function calling is a major attack surface: injection via function arguments,
-      unauthorized function execution, and privilege escalation. This section implements
-      function whitelisting, parameter sanitization, execution sandboxing, and defense
-      against function calling exploits.
+      Pre-training data is the model's DNA - everything in the training corpus shapes
+      model behavior. Poisoned web data can embed backdoors at scale. Memorization means
+      models may regurgitate private data from training. Understanding pre-training
+      reveals supply chain attacks: compromising data pipelines is more efficient than
+      attacking deployed models.
 
   - section_number: 8
-    title: "Tool Use and External API Integration"
-    filename: "section_04_08_tool_use_external_apis.yaml"
-    estimated_pages: 7
-    part: 2
-    
+    title: "KV Cache: Accelerating Inference"
+    filename: "section_04_08_kv_cache.yaml"
+    estimated_pages: 6
+
     topics:
-      - "Tool abstraction and unified interface design"
-      - "API integration patterns: REST, GraphQL, databases"
-      - "Tool selection logic and confidence scoring"
-      - "Result parsing and error propagation"
-    
+      - "Why KV cache exists (redundant attention computation)"
+      - "Key-Value pair storage per attention head"
+      - "Prefill vs decode phases"
+      - "Memory requirements: KV cache size calculations"
+      - "KV cache eviction strategies (sliding window)"
+      - "Shared KV cache for system prompts"
+      - "Multi-query and grouped-query attention (memory efficiency)"
+
     key_concepts:
-      - "Tool registry and dynamic tool discovery"
-      - "Authentication and credential management for tools"
-      - "Rate limiting and quota management across tools"
-      - "Tool chaining and sequential execution"
-    
+      - "Cache prefill as one-time cost"
+      - "Memory vs computation tradeoff"
+      - "Shared prefix optimization"
+      - "Cache as persistent state"
+
     deliverables:
-      - "Universal tool interface implementation"
-      - "Tool registry with capability matching"
-      - "API wrapper framework for common services"
-      - "Tool execution monitor with rate limiting"
-    
+      - "KV cache implementation from scratch"
+      - "Memory calculator (model size → cache size)"
+      - "Prefill vs decode profiler"
+      - "Cache eviction strategy comparison"
+      - "Shared prefix cache simulator"
+
     security_preview: |
-      External tool integration expands the attack surface dramatically. This section
-      covers API key management, least-privilege access, tool sandboxing, request
-      validation, and defense against SSRF and command injection through tool use.
+      KV cache introduces persistent state between requests - a side-channel attack
+      surface. Timing attacks can infer cache hits (shared prefixes reveal system prompts).
+      Shared KV cache for common system prompts means one user's cache can leak to another.
+      Memory pressure from oversized inputs can DoS servers by exhausting KV cache.
+      Understanding KV cache mechanics is essential for securing LLM inference infrastructure.
 
   - section_number: 9
-    title: "ReAct Agents: Reasoning and Acting in Interleaved Steps"
-    filename: "section_04_09_react_agents.yaml"
-    estimated_pages: 8
-    part: 2
-    
+    title: "Flash Attention: Memory-Efficient Attention"
+    filename: "section_04_09_flash_attention.yaml"
+    estimated_pages: 6
+
     topics:
-      - "ReAct framework: Thought, Action, Observation loop"
-      - "Reasoning trace generation and action selection"
-      - "Observation processing and state updates"
-      - "Multi-step problem solving with ReAct"
-    
+      - "Standard attention memory problem: O(n²) GPU memory"
+      - "Flash Attention algorithm: tiling and recomputation"
+      - "IO-aware computation: SRAM vs HBM"
+      - "Flash Attention 2: further optimizations"
+      - "Context length expansion via Flash Attention"
+      - "Flash Attention in PyTorch (scaled_dot_product_attention)"
+      - "Limitations and edge cases"
+
     key_concepts:
-      - "Interleaving reasoning and acting for better decisions"
-      - "Action space design and action formatting"
-      - "Termination conditions and success criteria"
-      - "Reflection and self-correction in ReAct loops"
-    
+      - "Memory hierarchy optimization (GPU SRAM vs HBM)"
+      - "Tiling for cache efficiency"
+      - "Recomputation vs storage tradeoff"
+      - "Enabling longer context windows"
+
     deliverables:
-      - "ReAct agent implementation from scratch"
-      - "Multi-step reasoning engine with trace logging"
-      - "Action parser and executor framework"
-      - "ReAct benchmark suite for complex tasks"
-    
+      - "Flash Attention prototype (conceptual NumPy)"
+      - "Memory usage comparison (standard vs flash)"
+      - "Context length vs memory profiler"
+      - "Flash Attention benchmark harness"
+
     security_preview: |
-      ReAct agents can be manipulated through observation injection, reasoning
-      hijacking, and action manipulation. This section implements secure ReAct
-      loops with observation validation, reasoning verification, action approval,
-      and defense against multi-step agent attacks.
+      Flash Attention enables much longer context windows, which changes the threat model.
+      Longer contexts mean more room for indirect prompt injection payloads. Recomputation
+      in Flash Attention can be exploited for timing side channels. Understanding Flash
+      Attention limitations reveals maximum viable context lengths - critical for
+      designing input validation and truncation policies.
 
   - section_number: 10
-    title: "Advanced Agent Architectures: Plan-and-Execute and Multi-Agent Systems"
-    filename: "section_04_10_advanced_agent_architectures.yaml"
-    estimated_pages: 8
-    part: 2
-    
+    title: "Speculative Decoding and Inference Optimization"
+    filename: "section_04_10_speculative_decoding.yaml"
+    estimated_pages: 6
+
     topics:
-      - "Plan-and-Execute agents: planning, execution, verification"
-      - "Multi-agent systems and agent communication protocols"
-      - "Agent specialization and role assignment"
-      - "Collaborative problem solving with multiple agents"
-    
+      - "Inference bottleneck: memory bandwidth, not compute"
+      - "Speculative decoding: small model drafts, large model verifies"
+      - "Acceptance criteria and rejection sampling"
+      - "Batch decoding and continuous batching"
+      - "Tensor parallelism for inference"
+      - "Serving frameworks: vLLM, TGI, TensorRT-LLM"
+      - "Latency vs throughput tradeoffs"
+
     key_concepts:
-      - "Hierarchical planning and task decomposition"
-      - "Agent coordination mechanisms (centralized vs distributed)"
-      - "Conflict resolution in multi-agent systems"
-      - "Agent memory and shared knowledge bases"
-    
+      - "Draft model as speed multiplier"
+      - "Probabilistic verification"
+      - "Continuous batching for throughput"
+      - "Hardware-aware inference"
+
     deliverables:
-      - "Plan-and-Execute agent with hierarchical planning"
-      - "Multi-agent coordination framework"
-      - "Agent communication protocol implementation"
-      - "Collaborative multi-agent benchmark tasks"
-    
+      - "Speculative decoding simulator"
+      - "Latency profiler (TTFT, inter-token latency)"
+      - "Batch size optimizer"
+      - "Throughput vs latency curve plotter"
+      - "Inference serving benchmark"
+
     security_preview: |
-      Multi-agent systems amplify security risks through agent impersonation,
-      communication interception, and coordinated attacks. This section covers
-      agent authentication, encrypted communication, trust management, and defense
-      against multi-agent exploitation.
+      Speculative decoding introduces a draft model as a new attack surface - smaller,
+      less aligned models generating candidate tokens. Continuous batching means one
+      user's request shares resources with others - side channels through timing.
+      Understanding inference infrastructure reveals where to place security controls
+      in LLM serving stacks and how batch processing affects isolation guarantees.
 
   - section_number: 11
-    title: "Agent Memory, State Management, and Human-in-the-Loop Patterns"
-    filename: "section_04_11_agent_memory_state_hitl.yaml"
-    estimated_pages: 7
-    part: 2
-    
+    title: "Context Windows: Architecture and Limits"
+    filename: "section_04_11_context_windows.yaml"
+    estimated_pages: 6
+
     topics:
-      - "Agent memory architectures: short-term, long-term, episodic"
-      - "State persistence and recovery mechanisms"
-      - "Human-in-the-loop workflows and approval gates"
-      - "Conversation history management and context pruning"
-    
+      - "Context window evolution: 512 → 2K → 8K → 128K → 1M tokens"
+      - "RoPE (Rotary Position Embedding) and extrapolation"
+      - "ALiBi: Attention with Linear Biases"
+      - "YaRN and other RoPE extension methods"
+      - "Practical limits: 'lost in the middle' phenomenon"
+      - "Context window vs RAG: when retrieval beats longer context"
+      - "Long context evaluation and benchmarks"
+
     key_concepts:
-      - "Memory consolidation and retrieval strategies"
-      - "Stateful vs stateless agent design"
-      - "Checkpoint and rollback mechanisms"
-      - "Human approval points and override capabilities"
-    
+      - "Position encoding determines context length"
+      - "Attention degradation at long contexts"
+      - "Lost in the middle: retrieval priority in long contexts"
+      - "Engineering vs theoretical context limits"
+
     deliverables:
-      - "Multi-tier agent memory system implementation"
-      - "State persistence framework with checkpointing"
-      - "Human-in-the-loop orchestration system"
-      - "Conversation manager with context window optimization"
-    
+      - "RoPE implementation with extrapolation"
+      - "ALiBi positional bias implementation"
+      - "Long context evaluator ('lost in the middle' test)"
+      - "Context length vs accuracy plotter"
+      - "RAG vs long-context performance comparator"
+
     security_preview: |
-      Agent memory systems can leak sensitive information, be poisoned with false
-      memories, or bypass human oversight. This section implements secure memory
-      storage, memory access control, approval gate enforcement, and defense against
-      memory manipulation attacks.
+      Long context windows create new attack surfaces at scale. The 'lost in the middle'
+      phenomenon means safety instructions buried in long contexts may be ignored -
+      adversaries exploit this by making prompts verbose. Conversely, critical content
+      (PII, credentials) in long contexts may persist across user sessions. Understanding
+      context window mechanics is essential for designing secure conversation handling.
 
   - section_number: 12
-    title: "Model Serving and Inference Optimization"
-    filename: "section_04_12_model_serving_inference_optimization.yaml"
-    estimated_pages: 8
-    part: 3
-    
+    title: "Model Quantization: INT8, INT4, and GPTQ"
+    filename: "section_04_12_quantization.yaml"
+    estimated_pages: 7
+
     topics:
-      - "Inference server architecture and deployment patterns"
-      - "Batching strategies: dynamic batching and continuous batching"
-      - "KV-cache optimization and memory management"
-      - "Request queuing and load balancing"
-    
+      - "Why quantization: memory and compute reduction"
+      - "FP32 → FP16 → BF16: half-precision basics"
+      - "INT8 quantization: post-training quantization (PTQ)"
+      - "INT4 quantization: GPTQ, AWQ, SqueezeLLM"
+      - "Quantization-aware training (QAT)"
+      - "Calibration datasets and quantization error"
+      - "Accuracy vs compression tradeoff analysis"
+      - "GGUF and llama.cpp ecosystem"
+
     key_concepts:
-      - "Throughput vs latency trade-offs in serving"
-      - "GPU utilization optimization techniques"
-      - "PagedAttention and efficient memory allocation"
-      - "Speculative decoding for faster generation"
-    
+      - "Quantization as lossy compression"
+      - "Per-channel vs per-tensor quantization"
+      - "Outlier handling in LLM weights"
+      - "Calibration for minimal accuracy loss"
+
     deliverables:
-      - "FastAPI-based inference server from scratch"
-      - "Dynamic batching implementation with vLLM"
-      - "KV-cache management system"
-      - "Load balancer for multi-GPU deployment"
-    
+      - "INT8 quantization pipeline from scratch"
+      - "Quantization error calculator (per-layer)"
+      - "Accuracy degradation evaluator"
+      - "GPTQ quantization implementation"
+      - "Before/after quantization benchmark"
+
     security_preview: |
-      Inference servers face DoS attacks, model extraction, and prompt injection
-      at scale. This section implements request validation, rate limiting, input
-      sanitization, model watermarking, and defense against inference-time attacks.
+      Quantization reduces model accuracy - which directly reduces robustness. Quantized
+      models are more susceptible to adversarial examples due to reduced precision.
+      The calibration dataset for quantization is itself an attack surface: poisoned
+      calibration data can degrade specific capabilities. GGUF models distributed
+      community-wide represent a supply chain risk: untrusted quantized models may
+      have been modified during compression.
 
   - section_number: 13
-    title: "Quantization and Model Compression for Deployment"
-    filename: "section_04_13_quantization_model_compression.yaml"
-    estimated_pages: 7
-    part: 3
-    
+    title: "Model Distillation and Pruning"
+    filename: "section_04_13_distillation_pruning.yaml"
+    estimated_pages: 5
+
     topics:
-      - "Post-training quantization: INT8, INT4, and FP16"
-      - "Quantization-aware training and calibration"
-      - "Model pruning and knowledge distillation"
-      - "Trade-offs: accuracy, speed, memory, cost"
-    
+      - "Knowledge distillation: teacher-student training"
+      - "Distillation loss: KL divergence on soft targets"
+      - "DistilBERT, TinyBERT, Phi-2: distillation examples"
+      - "Structured pruning: removing attention heads, layers"
+      - "Unstructured pruning: weight sparsity"
+      - "Pruning criteria: magnitude, gradient, activation"
+      - "Accuracy vs size pareto frontiers"
+
     key_concepts:
-      - "Symmetric vs asymmetric quantization"
-      - "Per-tensor vs per-channel quantization"
-      - "GPTQ and AWQ quantization algorithms"
-      - "Mixed-precision deployment strategies"
-    
+      - "Soft targets carry more information than hard labels"
+      - "Iterative pruning and fine-tuning"
+      - "Lottery ticket hypothesis"
+      - "Compression as capability tradeoff"
+
     deliverables:
-      - "INT8 quantization implementation from scratch"
-      - "GPTQ quantization for LLMs"
-      - "Knowledge distillation pipeline (teacher-student)"
-      - "Quantization impact analysis framework"
-    
+      - "Knowledge distillation pipeline (GPT-2 → smaller model)"
+      - "Attention head importance scorer"
+      - "Layer pruning with accuracy tracking"
+      - "Compression ratio vs accuracy plotter"
+
     security_preview: |
-      Quantization can introduce new vulnerabilities: bit-flip attacks, adversarial
-      quantization exploitation, and accuracy degradation attacks. This section covers
-      secure quantization practices, quantization verification, and defense against
-      quantization-based attacks.
+      Distillation creates smaller models that may not inherit safety properties from
+      the teacher - safety fine-tuning is often lost in distillation. Pruning safety-
+      relevant attention heads is a targeted alignment removal attack. Understanding
+      distillation reveals how malicious actors can create 'uncensored' versions of
+      aligned models by distilling without safety data.
 
   - section_number: 14
-    title: "Horizontal Scaling, Load Balancing, and Distributed Deployment"
-    filename: "section_04_14_scaling_load_balancing_distributed.yaml"
+    title: "Prompt Engineering: Techniques and Taxonomy"
+    filename: "section_04_14_prompt_engineering.yaml"
     estimated_pages: 7
-    part: 3
-    
+
     topics:
-      - "Horizontal scaling strategies for LLM workloads"
-      - "Load balancing algorithms and health checks"
-      - "Distributed serving with model parallelism and pipeline parallelism"
-      - "Auto-scaling policies and resource optimization"
-    
+      - "Zero-shot prompting: direct task specification"
+      - "Few-shot prompting: in-context examples"
+      - "Chain-of-thought (CoT): step-by-step reasoning"
+      - "ReAct: reasoning and acting"
+      - "Tree of Thoughts: branching reasoning"
+      - "Self-consistency: majority vote over samples"
+      - "Role prompting and persona assignment"
+      - "Output format control (JSON, XML, structured)"
+
     key_concepts:
-      - "Stateless vs stateful serving considerations"
-      - "Sticky sessions for conversation continuity"
-      - "Model sharding across multiple GPUs/nodes"
-      - "Cost-performance optimization at scale"
-    
+      - "Prompts as programs for LLMs"
+      - "In-context examples shape distribution"
+      - "Reasoning traces improve accuracy"
+      - "Format specification enforces structure"
+
     deliverables:
-      - "Nginx/HAProxy load balancer configuration for LLMs"
-      - "Kubernetes deployment manifests with HPA"
-      - "Distributed serving with Ray Serve"
-      - "Auto-scaling policy based on queue depth and latency"
-    
+      - "Prompt engineering playbook (50+ techniques)"
+      - "Chain-of-thought evaluator"
+      - "Few-shot example selector (semantic similarity)"
+      - "Output format enforcer"
+      - "Prompt sensitivity tester"
+
     security_preview: |
-      Distributed systems introduce new attack vectors: node compromise, network
-      interception, and coordinated attacks. This section implements secure service
-      mesh, encrypted inter-node communication, distributed authentication, and
-      defense against distributed system attacks.
+      Prompt engineering knowledge is dual-use: defenders use it to build effective
+      safety system prompts, attackers use it to craft injections. Chain-of-thought
+      makes reasoning explicit - useful for auditing but also reveals model internals
+      to adversaries. Role prompting is the foundation of jailbreaks. Every prompt
+      engineering technique has an offensive counterpart we'll cover in Chapter 7.
 
   - section_number: 15
-    title: "Caching Strategies and Cost Optimization"
-    filename: "section_04_15_caching_cost_optimization.yaml"
-    estimated_pages: 7
-    part: 3
-    
+    title: "System Prompts and Instruction Hierarchy"
+    filename: "section_04_15_system_prompts.yaml"
+    estimated_pages: 6
+
     topics:
-      - "Multi-tier caching: prompt cache, KV-cache, response cache"
-      - "Cache invalidation strategies and freshness management"
-      - "Cost analysis: compute, memory, storage, network"
-      - "Optimization techniques: request deduplication, prompt compression"
-    
+      - "System prompt architecture and placement"
+      - "Instruction priority: system > user > assistant"
+      - "Confidential system prompts and prompt leakage"
+      - "System prompt injection via user input"
+      - "Multi-turn conversation state management"
+      - "Context injection: RAG, tools, memory"
+      - "Defensive system prompt design"
+
     key_concepts:
-      - "Semantic caching using embedding similarity"
-      - "Cache hit rate optimization and monitoring"
-      - "Cost per token analysis and budgeting"
-      - "Intelligent routing to cached vs fresh responses"
-    
+      - "Instruction hierarchy as security boundary"
+      - "System prompt as policy definition"
+      - "Injection across trust boundaries"
+      - "Defense-in-depth for system prompts"
+
     deliverables:
-      - "Redis-based semantic cache implementation"
-      - "Prompt cache with similarity matching"
-      - "Cost tracking and budgeting system"
-      - "Cache analytics and optimization dashboard"
-    
+      - "System prompt extractor (via injection)"
+      - "Instruction priority violation detector"
+      - "Defensive system prompt template library"
+      - "Multi-turn context analyzer"
+      - "System prompt hardening checklist"
+
     security_preview: |
-      Caching can leak sensitive information through cache timing attacks, cache
-      poisoning, and unauthorized cache access. This section implements secure
-      caching with encryption, access control, cache partitioning, and defense
-      against cache-based attacks.
+      System prompts define the security boundary of LLM deployments - but they are
+      not cryptographic boundaries. Attackers regularly extract system prompt contents
+      through clever user queries. Indirect injection via RAG-retrieved content bypasses
+      instruction hierarchy entirely. Understanding system prompt mechanics is foundational
+      to Part 2 (prompt injection) and Part 3 (detection engineering).
 
   - section_number: 16
-    title: "Monitoring, Observability, and Quality Assurance"
-    filename: "section_04_16_monitoring_observability_quality.yaml"
-    estimated_pages: 8
-    part: 3
-    
+    title: "LLM API Architecture and Security"
+    filename: "section_04_16_api_architecture.yaml"
+    estimated_pages: 7
+
     topics:
-      - "Comprehensive logging: requests, responses, errors, traces"
-      - "Performance metrics: latency, throughput, token usage, costs"
-      - "Quality monitoring: hallucination detection, factuality checking"
-      - "Drift detection and model performance degradation"
-    
+      - "LLM API design: OpenAI, Anthropic, Google patterns"
+      - "Authentication and API keys: threat model"
+      - "Rate limiting: tokens per minute, requests per minute"
+      - "Token counting and cost calculation"
+      - "Streaming responses and partial outputs"
+      - "Batching API calls for throughput"
+      - "API versioning and model deprecation"
+      - "On-premise vs API: security tradeoffs"
+
     key_concepts:
-      - "Distributed tracing for multi-component LLM systems"
-      - "Real-time anomaly detection in LLM outputs"
-      - "A/B testing and gradual rollout strategies"
-      - "SLO/SLA definition and monitoring for LLMs"
-    
+      - "API as security perimeter"
+      - "Token economics and cost attacks"
+      - "Rate limiting as DoS protection"
+      - "Streaming creates partial state"
+
     deliverables:
-      - "OpenTelemetry instrumentation for LLM pipelines"
-      - "Prometheus + Grafana monitoring stack"
-      - "Hallucination detection system using consistency checks"
-      - "Model drift detection using output distribution analysis"
-    
+      - "API wrapper with rate limiting"
+      - "Token counter (accurate billing estimate)"
+      - "Cost calculator and budget enforcer"
+      - "Streaming response handler"
+      - "API key rotation system"
+      - "On-premise vs API security comparator"
+
     security_preview: |
-      Monitoring systems can expose sensitive data through logs, metrics, and traces.
-      This section implements PII redaction in logs, secure metric collection, audit
-      trail generation, and defense against information leakage through observability.
+      LLM APIs are the interface between applications and models - a critical attack
+      surface. API key compromise enables cost attacks (burn budget), data extraction
+      (query sensitive system prompts), and model abuse. Rate limits can be bypassed
+      through multiple accounts. Streaming responses leak partial outputs before
+      safety filters can evaluate the full generation. Understanding API architecture
+      is prerequisite for building the detection systems in Part 3.
 
   - section_number: 17
-    title: "API Security, Secrets Management, and Compliance"
-    filename: "section_04_17_api_security_secrets_compliance.yaml"
-    estimated_pages: 8
-    part: 3
-    
+    title: "Fine-Tuning GPT-2 on Custom Dataset"
+    filename: "section_04_17_finetune_gpt2.yaml"
+    estimated_pages: 6
+
     topics:
-      - "API authentication and authorization (OAuth2, API keys, JWT)"
-      - "Secrets management: environment variables, vaults, rotation"
-      - "Compliance requirements: GDPR, SOC2, data residency"
-      - "Audit logging and security event monitoring"
-    
+      - "Complete project: fine-tune GPT-2 for security text generation"
+      - "Dataset preparation: security reports, CVE descriptions, advisories"
+      - "Tokenization and chunking strategy"
+      - "Training configuration: learning rate, batch size, epochs"
+      - "Evaluation: perplexity on security text"
+      - "Generation: security report completion"
+      - "Safety evaluation: does fine-tuning degrade safety?"
+      - "Lessons learned from production fine-tuning"
+
     key_concepts:
-      - "Zero-trust API design principles"
-      - "Least-privilege access control for LLM APIs"
-      - "Secret rotation strategies and credential lifecycle"
-      - "Data classification and handling requirements"
-    
+      - "Domain adaptation through fine-tuning"
+      - "Perplexity as generation quality metric"
+      - "Safety regression testing"
+      - "Complete ML project lifecycle"
+
     deliverables:
-      - "OAuth2 + JWT authentication system for LLM APIs"
-      - "HashiCorp Vault integration for secrets management"
-      - "GDPR-compliant request/response handling"
-      - "Security audit log processor and alerting system"
-    
+      - "Fine-tuned GPT-2 on security dataset"
+      - "Security text generator"
+      - "Perplexity evaluator"
+      - "Safety regression test suite"
+      - "Fine-tuning experiment tracker (MLflow or W&B)"
+      - "Model card documenting capabilities and limitations"
+
     security_preview: |
-      Production API security is critical: this section covers comprehensive API
-      hardening including rate limiting, DDoS protection, credential management,
-      compliance automation, and defense against API-specific attacks in LLM systems.
+      This hands-on project demonstrates the fine-tuning attack surface in practice.
+      You'll see how easily a base model can be adapted for domain-specific generation,
+      and measure whether safety properties survive fine-tuning. This creates the 'villain's
+      toolkit' understanding that makes Part 2 (AI Security Landscape) immediately practical.
 
   - section_number: 18
-    title: "Advanced Attack Techniques: Multi-Stage and Indirect Injection"
-    filename: "section_04_18_advanced_attacks.yaml"
-    estimated_pages: 7
-    part: 4
-    
-    topics:
-      - "Multi-stage prompt injection attacks and payload staging"
-      - "Indirect prompt injection via RAG documents and tools"
-      - "Agent jailbreaking through tool manipulation"
-      - "Supply chain attacks: RAG poisoning and backdoored fine-tuning"
-    
-    key_concepts:
-      - "Attack chaining and persistence mechanisms"
-      - "Cross-context injection in multi-turn conversations"
-      - "Retrieval manipulation for targeted injection"
-      - "Model backdoors in fine-tuned adapters"
-    
-    deliverables:
-      - "Multi-stage injection attack framework (ethical research)"
-      - "Indirect injection detection system"
-      - "RAG poisoning attack simulator"
-      - "Backdoor detection in fine-tuned models"
-    
-    security_preview: |
-      This section provides ethical, educational demonstrations of advanced attacks
-      to understand attacker techniques. All implementations include detection and
-      defense mechanisms, emphasizing that understanding attacks is necessary for
-      building robust defenses.
+    title: "Chapter 4 Summary: Part 1 Capstone"
+    filename: "section_04_18_chapter_summary.yaml"
+    estimated_pages: 5
 
-  - section_number: 19
-    title: "Defense-in-Depth: Multi-Layer Security Architecture"
-    filename: "section_04_19_defense_in_depth.yaml"
-    estimated_pages: 8
-    part: 4
-    
-    topics:
-      - "Zero-trust architecture for LLM applications"
-      - "Input validation and sanitization at multiple layers"
-      - "Output filtering and content safety checks"
-      - "Least-privilege execution and sandboxing"
-    
-    key_concepts:
-      - "Security layers: network, API, application, model, data"
-      - "Fail-safe defaults and secure-by-design principles"
-      - "Separation of duties in LLM systems"
-      - "Defense redundancy and resilience"
-    
-    deliverables:
-      - "Complete defense-in-depth architecture implementation"
-      - "Multi-layer input validation framework"
-      - "Output safety checker with multiple moderation APIs"
-      - "Sandboxed execution environment for agents and tools"
-    
-    security_preview: |
-      Defense-in-depth ensures no single point of failure. This section builds a
-      comprehensive security architecture with multiple defensive layers, assuming
-      breach at each layer, implementing detection and response at every level.
+    overview: |
+      Comprehensive review of Chapter 4 and integration across all of Part 1. This
+      summary connects ML fundamentals (Chapter 1) through deep learning (Chapter 2)
+      and LLM architecture (Chapter 3) to modern production systems (Chapter 4).
+      Includes key concepts review, Part 1 knowledge synthesis, portfolio deliverables
+      checklist, and preview of Part 2 (AI Security Landscape).
 
-  - section_number: 20
-    title: "Red-Teaming, Adversarial Testing, and Security Validation"
-    filename: "section_04_20_red_teaming_adversarial_testing.yaml"
-    estimated_pages: 8
-    part: 4
-    
-    topics:
-      - "Automated red-teaming frameworks and attack generation"
-      - "Adversarial test case generation using LLMs"
-      - "Security regression testing and CI/CD integration"
-      - "Vulnerability scoring and prioritization"
-    
-    key_concepts:
-      - "Attack surface mapping for LLM systems"
-      - "Automated exploit generation and validation"
-      - "Continuous security testing pipelines"
-      - "Purple team exercises (red + blue collaboration)"
-    
-    deliverables:
-      - "Automated red-team testing framework"
-      - "LLM-powered adversarial test generator"
-      - "Security regression test suite"
-      - "Vulnerability management and tracking system"
-    
-    security_preview: |
-      Proactive security testing is essential. This section builds automated red-
-      teaming systems that continuously test for vulnerabilities, generate adversarial
-      cases, and validate defenses, creating a continuous security improvement cycle.
+    structure:
+      part_1: "Sections 1-3 Review: GPT evolution and scaling"
+      part_2: "Sections 4-6 Review: Alignment (RLHF, CAI, SFT)"
+      part_3: "Sections 7-10 Review: Training pipeline and inference optimization"
+      part_4: "Sections 11-14 Review: Context, quantization, and prompt engineering"
+      part_5: "Sections 15-17 Review: System prompts, APIs, and fine-tuning project"
+      integration: "Part 1 synthesis: from gradient descent to production LLM"
+      security_map: "Complete attack surface map for everything covered in Part 1"
+      portfolio: "What you've built: portfolio checklist and GitHub setup"
+      preview: "Part 2: AI Security Landscape (where defense meets offense)"
 
-  - section_number: 21
-    title: "Chapter 4 Comprehensive Summary and Production Readiness"
-    filename: "section_04_21_comprehensive_summary.yaml"
-    estimated_pages: 8
-    part: 4
-    
-    topics:
-      - "Complete review: RAG, agents, production deployment, security"
-      - "Integration pathways: combining techniques for robust systems"
-      - "Production readiness checklist and validation framework"
-      - "Future directions: emerging techniques and evolving threats"
-    
-    key_concepts:
-      - "End-to-end system design: from development to production"
-      - "Security maturity model for LLM applications"
-      - "Trade-off analysis: performance, cost, security"
-      - "Continuous improvement and adaptation strategies"
-    
     deliverables:
-      - "Production readiness assessment framework"
-      - "Complete reference architecture with all Chapter 4 components"
-      - "Security checklist and validation tools"
-      - "Migration guide from prototype to production"
-    
-    security_preview: |
-      Final section synthesizes all Chapter 4 learnings into a complete production
-      system design. Provides comprehensive security validation, readiness assessment,
-      and ongoing security maintenance strategies for production LLM applications.
+      - "Complete Part 1 knowledge checklist"
+      - "Attack surface map for ML/DL/LLM systems"
+      - "GitHub repository structure populated with all Chapter 4 code"
+      - "Fine-tuned GPT-2 project complete and documented"
+      - "Prompt engineering playbook finalized"
+      - "Part 2 reading prerequisites confirmed"
+
+    part_1_completion_criteria:
+      knowledge:
+        - "Implement ML algorithms from scratch (Chapter 1)"
+        - "Build neural network with backprop (Chapter 2)"
+        - "Implement transformer from scratch (Chapter 3)"
+        - "Explain GPT-4, Claude, RLHF, Constitutional AI (Chapter 4)"
+        - "Identify attack surfaces at every layer of the stack"
+      skills:
+        - "Spam classifier working (NumPy only)"
+        - "MNIST neural network (98%+ accuracy)"
+        - "Mini-transformer trained on sequence task"
+        - "Fine-tuned GPT-2 on custom dataset"
+        - "Prompt engineering playbook (50+ techniques)"
+      deliverables:
+        - "GitHub repository with all implementations"
+        - "4 chapter README files with results"
+        - "Security attack surface documentation"
+        - "Ready for Part 2: AI Security Landscape"
 
 estimated_totals:
-  total_sections: 21
-  estimated_total_pages: 156
-  total_pages_range: "147-165"
-  code_examples: "65+"
-  security_analyses: "21 comprehensive + numerous per-topic"
-  
-  breakdown_by_part:
-    part_1_advanced_techniques:
-      sections: 6
-      pages: "45-48"
-      focus: "RAG, prompting, fine-tuning fundamentals"
-    
-    part_2_agents_and_tools:
-      sections: 5
-      pages: "37-40"
-      focus: "Function calling, agents, workflows"
-    
-    part_3_production:
-      sections: 6
-      pages: "45-48"
-      focus: "Serving, scaling, monitoring, operations"
-    
-    part_4_security:
-      sections: 4
-      pages: "29-32"
-      focus: "Advanced attacks, defense, testing"
+  total_sections: 18
+  content_sections: 17
+  summary_sections: 1
+  estimated_total_pages: 108
+  average_pages_per_section: 6.0
+  implementation_files: "18 YAML section files"
+  code_examples: "55+ runnable implementations"
+  security_analyses: "18 security implications covered"
+  capstone_deliverable: "Fine-tuned GPT-2 on security dataset (Section 17)"
 
-teaching_philosophy:
-  - "Security-first: Every concept analyzed for vulnerabilities and defenses"
-  - "Build from scratch: NumPy implementations before using libraries"
-  - "Production-ready: Real-world, deployable code examples"
-  - "Progressive complexity: Each section builds on previous knowledge"
-  - "Ethical demonstrations: Attack examples only for educational defense"
-  - "Comprehensive coverage: No handwaving, explain the 'why' and 'how'"
-  - "Practical verification: Code examples are complete and runnable"
+chapter_completion_criteria:
+  knowledge:
+    - "Explain GPT-2, GPT-3, GPT-4 architectural differences"
+    - "Describe RLHF and Constitutional AI training pipelines"
+    - "Explain KV cache and Flash Attention mechanics"
+    - "Understand quantization trade-offs (INT8, INT4, GPTQ)"
+    - "Articulate system prompt instruction hierarchy and failure modes"
+    - "Identify API security risks and abuse patterns"
 
-integration_with_book:
-  builds_on:
-    chapter_1: "Python fundamentals, NumPy, software engineering"
-    chapter_2: "Deep learning, optimization, neural network training"
-    chapter_3: "Transformers, LLMs, attention, security fundamentals"
-  
-  prepares_for:
-    chapter_5: "Detection systems for LLM-powered applications"
-    chapter_6: "Deployment automation and MLOps for LLM security"
-    chapter_7: "Operational security and incident response"
+  skills:
+    - "Fine-tune GPT-2 on custom dataset with tracking"
+    - "Implement KV cache from scratch"
+    - "Quantize a model and measure accuracy impact"
+    - "Engineer effective system prompts with safety controls"
+    - "Build API wrapper with rate limiting and cost controls"
+    - "Extract system prompts via injection (red-team exercise)"
 
-key_technologies:
-  core_libraries:
-    - "NumPy (foundational implementations)"
-    - "Transformers (Hugging Face)"
-    - "LangChain / LlamaIndex (RAG, agents)"
-    - "FastAPI / Flask (serving)"
-    - "FAISS / Pinecone (vector databases)"
-  
-  deployment:
-    - "Docker / Kubernetes"
-    - "Ray Serve / vLLM"
-    - "Prometheus / Grafana"
-    - "OpenTelemetry"
-  
-  security:
-    - "OAuth2 / JWT"
-    - "HashiCorp Vault"
-    - "Content moderation APIs"
-    - "Red-teaming frameworks"
+  security_mindset:
+    - "Map attack surfaces across the complete LLM stack"
+    - "Understand how RLHF/CAI fail under adversarial pressure"
+    - "Identify side channels in inference infrastructure"
+    - "Recognize quantization as a robustness attack vector"
+    - "Design defensive system prompts against injection"
+    - "Audit fine-tuned models for safety regression"
 
-success_criteria:
-  student_can:
-    - "Build production RAG systems from scratch"
-    - "Implement and secure LLM agents with tool use"
-    - "Deploy LLMs at scale with optimization and monitoring"
-    - "Identify and defend against advanced LLM attacks"
-    - "Design zero-trust architectures for LLM applications"
-    - "Conduct security testing and validation"
-    - "Make informed decisions on fine-tuning vs prompting"
-    - "Optimize costs while maintaining security"
-
+metadata:
+  creation_date: "2026-01-19"
+  author: "Raghav Dinesh"
+  book_version: "1.0"
+  total_yaml_files: 19
+  dependencies:
+    - "chapter_01_index.yaml (gradient descent, regularization)"
+    - "chapter_02_index.yaml (backpropagation, optimization)"
+    - "chapter_03_index.yaml (transformer architecture, attention)"
+    - "PyTorch, HuggingFace Transformers (implementation)"
+    - "MLflow or Weights & Biases (experiment tracking)"
+  next_chapter: "Chapter 5: AI Threat Landscape (Part 2 begins)"
 ---
