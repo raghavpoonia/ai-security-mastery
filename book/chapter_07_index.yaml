@@ -141,8 +141,6 @@ sections:
   - section_number: 1
     title: "Jailbreak vs Prompt Injection: Definitional Clarity and Threat Model Separation"
     filename: "section_07_01_jailbreak_vs_injection.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0701 Jailbreak vs\
-      \ Injection) by Raghav Dinesh"
     estimated_pages: 6
 
     topics:
@@ -190,8 +188,6 @@ sections:
   - section_number: 2
     title: "Why Jailbreaks Work: RLHF Alignment Failure Modes"
     filename: "section_07_02_rlhf_alignment_mechanics.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0702 RLHF Alignment\
-      \ Mechanics) by Raghav Dinesh"
     estimated_pages: 6
 
     topics:
@@ -246,8 +242,6 @@ sections:
   - section_number: 3
     title: "Character Roleplay Attacks: DAN, Persona Hijacking, and Identity Override"
     filename: "section_07_03_character_roleplay_attacks.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0703 Character Roleplay\
-      \ Attacks) by Raghav Dinesh"
     estimated_pages: 7
 
     topics:
@@ -300,8 +294,6 @@ sections:
     title: "Fictional Framing: Hypothetical Scenarios, Thought Experiments, and\
       \ Story Completion"
     filename: "section_07_04_fictional_framing.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0704 Fictional\
-      \ Framing) by Raghav Dinesh"
     estimated_pages: 6
 
     topics:
@@ -347,8 +339,6 @@ sections:
   - section_number: 5
     title: "Context Manipulation: Roleplay Escalation and Fiction Gradient Attacks"
     filename: "section_07_05_context_manipulation.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0705 Context\
-      \ Manipulation) by Raghav Dinesh"
     estimated_pages: 6
 
     topics:
@@ -402,8 +392,6 @@ sections:
   - section_number: 6
     title: "Instruction Hierarchy Attacks: System Prompt vs User Prompt Competition"
     filename: "section_07_06_instruction_hierarchy_attacks.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0706 Instruction\
-      \ Hierarchy Attacks) by Raghav Dinesh"
     estimated_pages: 6
 
     topics:
@@ -452,8 +440,6 @@ sections:
   - section_number: 7
     title: "Multi-Step Jailbreaks: Gradual Boundary Erosion"
     filename: "section_07_07_multistep_gradual_erosion.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0707 Multi-Step\
-      \ Gradual Erosion) by Raghav Dinesh"
     estimated_pages: 6
 
     topics:
@@ -501,8 +487,6 @@ sections:
   - section_number: 8
     title: "Payload Splitting: Fragmented Instruction Delivery"
     filename: "section_07_08_payload_splitting.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0708 Payload\
-      \ Splitting) by Raghav Dinesh"
     estimated_pages: 6
 
     topics:
@@ -554,8 +538,6 @@ sections:
   - section_number: 9
     title: "Universal Adversarial Suffixes: GCG and Gradient-Based Jailbreaks"
     filename: "section_07_09_gcg_adversarial_suffixes.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0709 GCG Adversarial\
-      \ Suffixes) by Raghav Dinesh"
     estimated_pages: 7
 
     topics:
@@ -609,8 +591,6 @@ sections:
   - section_number: 10
     title: "Many-Shot Jailbreaking: Long-Context Windows as Vulnerability"
     filename: "section_07_10_many_shot_jailbreaking.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0710 Many-Shot\
-      \ Jailbreaking) by Raghav Dinesh"
     estimated_pages: 6
 
     topics:
@@ -665,8 +645,6 @@ sections:
   - section_number: 11
     title: "Competing Objectives: Safety vs Helpfulness Exploitation"
     filename: "section_07_11_competing_objectives.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0711 Competing\
-      \ Objectives) by Raghav Dinesh"
     estimated_pages: 6
 
     topics:
@@ -719,8 +697,6 @@ sections:
     title: "Automated Jailbreak Generation: Red-Team Tools and Adversarial\
       \ Frameworks"
     filename: "section_07_12_automated_jailbreak_generation.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0712 Automated\
-      \ Jailbreak Generation) by Raghav Dinesh"
     estimated_pages: 7
 
     topics:
@@ -772,8 +748,6 @@ sections:
     title: "Jailbreak Catalog: 50+ Techniques Organised by Family and Detection\
       \ Difficulty"
     filename: "section_07_13_jailbreak_catalog.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0713 Jailbreak\
-      \ Catalog) by Raghav Dinesh"
     estimated_pages: 7
 
     topics:
@@ -831,8 +805,6 @@ sections:
     title: "Jailbreak Detection: Classifier Design, Integration, and Unified\
       \ OWASP LLM01 Coverage"
     filename: "section_07_14_jailbreak_detection_rule.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0714 Jailbreak\
-      \ Detection Rule) by Raghav Dinesh"
     estimated_pages: 8
 
     topics:
@@ -891,8 +863,6 @@ sections:
   - section_number: 15
     title: "Chapter 7 Summary: Jailbreak Defence Architecture"
     filename: "section_07_15_chapter_summary.yaml"
-    note: "20260107 | AI Security: Jailbreak Techniques (Section 0715 Chapter\
-      \ Summary) by Raghav Dinesh"
     estimated_pages: 6
 
     overview: |
